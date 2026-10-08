@@ -1,0 +1,22 @@
+{
+ "g": [
+  0.1264837861245625,
+  0.08535417195363693,
+  0.09533685788189,
+  -0.20134612173349586
+ ],
+ "h": [
+  0.0036392443330881454,
+  0.0019149740801010133,
+  0.0012012735343719784,
+  0.0058358608064658585
+ ],
+ "plateH": 0.26529280590046034,
+ "note": "Least squares on 15 sliced plates of the release profile (A1, 0.20 mm, 7.5 % gyroid): g = a*area[cm2] + b*volume[cm3] (adapters: c*volume) + d per part; h likewise plus setup time per plate",
+ "error": {
+  "g_mean": 2.83,
+  "h_mean": 0.117
+ },
+ "jpH": 0.029916107663092013,
+ "jpNote": "Japandi time correction per cm2 of grooved area, fitted on 15 plates of the Japandi release profile, mean residual 0.12 h"
+}

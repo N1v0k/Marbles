@@ -1,0 +1,72 @@
+{
+ "_source": "Sliced plates of the plain release print profile (A1 0.4, 0.20 mm, 7.5 % gyroid, no supports): print time in minutes and filament in grams per plate.",
+ "plates": {
+  "1": {
+   "min": 35.0,
+   "g": 10.52
+  },
+  "2": {
+   "min": 50.2,
+   "g": 8.44
+  },
+  "3": {
+   "min": 45.3,
+   "g": 20.32
+  },
+  "4": {
+   "min": 404.0,
+   "g": 232.14
+  },
+  "5": {
+   "min": 127.4,
+   "g": 62.41
+  },
+  "6": {
+   "min": 185.6,
+   "g": 109.16
+  },
+  "7": {
+   "min": 374.0,
+   "g": 201.35
+  },
+  "8": {
+   "min": 121.4,
+   "g": 54.15
+  },
+  "9": {
+   "min": 238.7,
+   "g": 133.98
+  },
+  "10": {
+   "min": 114.2,
+   "g": 60.8
+  },
+  "11": {
+   "min": 120.7,
+   "g": 61.91
+  },
+  "12": {
+   "min": 284.1,
+   "g": 155.74
+  },
+  "13": {
+   "min": 298.8,
+   "g": 144.2
+  },
+  "14": {
+   "min": 319.5,
+   "g": 172.9
+  },
+  "15": {
+   "min": 400.7,
+   "g": 259.83
+  },
+  "17": {
+   "min": 162.72,
+   "g": 98.24
+  }
+ },
+ "excluded": {
+  "14": "Plate 14 holds the flip-flop and the Y merges, which print with their own settings; they are scaled to their share of this plate instead."
+ }
+}

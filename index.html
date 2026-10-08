@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Marble Run Builder 16 mm</title>
+    <meta name="description" content="Interactive builder for the modular 3D-printed marble run kit for 16 mm marbles (snap-pin system)" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='12' fill='%237b5ea7'/%3E%3Ccircle cx='12' cy='12' r='4' fill='%23fff' opacity='.7'/%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <div id="app">
+      <header id="topbar">
+        <div class="brand"><span class="logo"></span><div><b data-t="title">Marble Run Builder 16 mm</b><small id="brand-sub"></small></div></div>
+        <div class="toolbar">
+          <button id="btn-new" data-t="new"></button>
+          <div class="dropdown"><button id="btn-demo" data-t="demo"></button><div class="menu" id="menu-demo"></div></div>
+          <button id="btn-undo" title="Ctrl+Z">&#8630;</button>
+          <button id="btn-redo" title="Ctrl+Y">&#8631;</button>
+          <div class="dropdown"><button id="btn-export">&#8615;</button><div class="menu" id="menu-export">
+            <button id="btn-share" data-t="share"></button>
+            <button id="btn-save" data-t="save"></button>
+            <button id="btn-load" data-t="load"></button>
+            <button id="btn-bomcsv" data-t="bomCsv"></button>
+            <button id="btn-mwlist" data-t="mwList"></button>
+          </div></div>
+          <label class="switch" id="sw-japandi"><input type="checkbox" id="chk-japandi" role="switch" /><span class="knob" aria-hidden="true"></span><span class="switch-label" data-t="japandi"></span></label>
+          <button id="btn-help" data-t="help"></button>
+          <button id="btn-lang">EN</button>
+        </div>
+      </header>
+      <main id="layout">
+        <aside id="palette" class="pane">
+          <div class="pane-head">
+            <input id="search" type="search" />
+            <div id="chips" class="chips" role="group"></div>
+            <label class="chk"><input type="checkbox" id="chk-compatible" checked /><span data-t="compatibleOnly"></span></label>
+            <label class="chk"><input type="checkbox" id="chk-reverse" /><span data-t="reverseMode"></span></label>
+            <label class="chk"><input type="checkbox" id="chk-legacy" /><span data-t="showLegacy"></span></label>
+          </div>
+          <div id="mode-line" class="mode-line"></div>
+          <div id="open-end" class="open-end" hidden></div>
+          <div id="palette-list" class="pane-body"></div>
+        </aside>
+        <section id="viewport" class="pane">
+          <canvas id="c3d"></canvas>
+          <div class="view-tools">
+            <button id="btn-fit" data-t="fit"></button>
+            <button id="btn-top" data-t="top"></button>
+            <button id="btn-iso" data-t="iso"></button>
+            <label class="chk"><input type="checkbox" id="chk-adapters" checked /><span data-t="adapters"></span></label>
+            <label class="chk"><input type="checkbox" id="chk-path" checked /><span data-t="path"></span></label>
+            <label class="chk"><input type="checkbox" id="chk-speed" /><span data-t="speedColors"></span></label>
+          </div>
+          <div id="overlay-stats"></div>
+          <div id="choice-bar" class="choice-bar" hidden></div>
+          <div id="empty-hint" data-t="empty"></div>
+          <div id="detail-section"></div>
+        </section>
+        <aside id="side" class="pane">
+          <div class="pane-body">
+            <section id="chain-section"><h3 data-t="track"></h3><ol id="chain-list"></ol></section>
+            <section id="issues-section"><h3 data-t="issues"></h3><ul id="issues-list"></ul></section>
+            <section id="physics-section"><h3 data-t="physics"></h3>
+              <label class="range"><span data-t="ballMass"></span> <output id="out-mass"></output><input type="number" id="inp-mass" min="1" max="100" step="0.1" /></label>
+              <label class="range"><span data-t="push"></span> <output id="out-v0"></output><input type="range" id="rng-v0" min="0" max="400" step="10" /></label>
+              <label class="range"><span data-t="crr"></span> <output id="out-crr"></output><input type="range" id="rng-crr" min="0.005" max="0.04" step="0.005" /></label>
+              <details class="phys-info"><summary class="muted small" data-t="physInfo"></summary>
+                <p class="muted small" data-t="physNote"></p>
+                <p class="muted small" data-t="ballNote"></p>
+              </details>
+            </section>
+            <section id="stats-section"><h3 data-t="stats"></h3><dl id="stats"></dl></section>
+            <section id="colors-section"><h3 data-t="colors"></h3>
+              <select id="sel-colors"></select>
+              <div class="swatches" id="swatches">
+                <button type="button" class="swatch" id="sw-track" data-g="track" aria-expanded="false" aria-controls="fil-panel"><i class="sw-dot"></i><span class="sw-txt"><b data-t="colTrack"></b><small class="sw-name"></small></span></button>
+                <button type="button" class="swatch" id="sw-rail" data-g="rail" aria-expanded="false" aria-controls="fil-panel"><i class="sw-dot"></i><span class="sw-txt"><b data-t="colRail"></b><small class="sw-name"></small></span></button>
+                <button type="button" class="swatch" id="sw-adapter" data-g="adapter" aria-expanded="false" aria-controls="fil-panel"><i class="sw-dot"></i><span class="sw-txt"><b data-t="colAdapter"></b><small class="sw-name"></small></span></button>
+                <button type="button" class="swatch" id="sw-accent" data-g="accent" aria-expanded="false" aria-controls="fil-panel"><i class="sw-dot"></i><span class="sw-txt"><b data-t="colAccent"></b><small class="sw-name"></small></span></button>
+              </div>
+              <div id="fil-panel" class="fil-panel" hidden>
+                <div class="fil-head"><b id="fil-title"></b><button type="button" id="fil-close" class="fil-x">×</button></div>
+                <div class="fil-tools"><select id="fil-type"></select><input type="search" id="fil-search" /></div>
+                <div id="fil-grid" class="fil-grid" role="listbox"></div>
+                <div class="fil-foot"><label class="fil-own"><input type="color" id="fil-own" /><span data-t="colOwn"></span></label><span class="muted small" data-t="filSource"></span></div>
+              </div>
+              <p class="small fil-fit" id="fil-fit" hidden></p>
+              <p class="muted small" data-t="colorsNote"></p>
+            </section>
+            <section id="plates-section"><h3 data-t="plates"></h3>
+              <label class="range"><span data-t="maxHours"></span> <output id="out-hours"></output><input type="range" id="rng-hours" min="2" max="16" step="0.5" /></label>
+              <div id="plates-summary"></div>
+              <div id="plates-list"></div>
+              <div class="detail-actions"><button id="btn-mwlist2" data-t="mwList"></button><button id="btn-plan-md" data-t="planMd"></button><button id="btn-3mf-all" data-t="threeMfAll"></button></div>
+              <p class="muted small" data-t="platesNote"></p>
+            </section>
+            <section id="onepiece-section"><h3 data-t="onePiece"></h3>
+              <label class="chk"><input type="checkbox" id="chk-plate" /><span data-t="plateMode"></span></label>
+              <div class="op-row"><select id="sel-printer" aria-label="Drucker"></select>
+                <span id="plate-custom" class="op-custom" hidden><input type="number" id="inp-px" min="100" max="1000" step="1" /> × <input type="number" id="inp-py" min="100" max="1000" step="1" /> × <input type="number" id="inp-pz" min="100" max="1000" step="1" /> mm</span></div>
+              <div id="op-status" class="op-status small"></div>
+              <div class="detail-actions"><button id="btn-3mf-one" data-t="threeMfOne"></button></div>
+              <div id="mw-status" class="mw-status small"></div>
+              <p class="muted small" data-t="onePieceNote"></p>
+            </section>
+            <section id="bom-section"><h3 data-t="bom"></h3><table id="bom"></table></section>
+          </div>
+        </aside>
+      </main>
+      <nav id="tabs">
+        <button data-tab="palette" class="active" data-t="parts"></button>
+        <button data-tab="viewport" data-t="view3d"></button>
+        <button data-tab="side" data-t="track"></button>
+      </nav>
+      <dialog id="dlg-help"><div id="help-body"></div><form method="dialog"><button data-t="ok"></button></form></dialog>
+      <dialog id="dlg-confirm"><p id="confirm-text"></p><input id="confirm-input" type="text" readonly hidden style="width:100%;font:inherit;padding:6px" />
+        <form method="dialog" class="detail-actions"><button value="cancel" data-t="cancel"></button><button value="ok" class="primary" data-t="ok"></button></form></dialog>
+      <dialog id="dlg-key"><h3 data-t="keyTitle"></h3><p data-t="keyText"></p><p id="key-page" class="small"></p>
+        <div id="key-drop" class="key-drop" tabindex="0" role="button"><span data-t="keyDrop"></span></div>
+        <p id="key-msg" class="small" aria-live="polite"></p>
+        <form method="dialog" class="detail-actions"><button type="button" id="key-switch" class="primary" hidden></button><button value="cancel" data-t="close"></button></form></dialog>
+      <dialog id="dlg-connect" class="dlg-connect"><h3 data-t="connectTitle"></h3><p class="small muted" data-t="connectIntro"></p>
+        <div id="connect-goals" class="connect-goals"></div><div id="connect-results" class="connect-results" aria-live="polite"></div>
+        <form method="dialog" class="detail-actions"><button value="cancel" data-t="close"></button></form></dialog>
+      <input type="file" id="file-key" accept=".3mf,model/3mf" hidden />
+      <input type="file" id="file-load" accept=".json,application/json" hidden />
+      <div id="toast"></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

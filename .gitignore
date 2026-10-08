@@ -1,0 +1,14 @@
+node_modules/
+dist/
+dist-single/
+public/print/
+data/parts_raw.json
+__pycache__/
+public/print_j/
+# local-only files (mesh data, review output, backups)
+*.kbm.gz
+_review/
+_to_delete/
+*.bak_*
+out/
+.vite/

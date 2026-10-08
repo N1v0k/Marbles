@@ -1,0 +1,406 @@
+{
+ "demos": [
+  {
+   "id": "mini",
+   "name": {
+    "de": "Mini-Bahn (gedruckt 20.09.2026, 6 Teile)",
+    "en": "Mini track (printed 2026-09-20, 6 parts)"
+   },
+   "chain": [
+    {
+     "part": "StartSchale_60_16mm"
+    },
+    {
+     "part": "Gerade120_60-50_16mm"
+    },
+    {
+     "part": "Kurve90_50-40_16mm"
+    },
+    {
+     "part": "Gerade120_40-40_16mm"
+    },
+    {
+     "part": "Kurve90_40_16mm"
+    },
+    {
+     "part": "EndSchale_40_16mm"
+    }
+   ]
+  },
+  {
+   "id": "starter-slide",
+   "name": {
+    "de": "Starter Rutsche (zwei Ebenen)",
+    "en": "Starter slide (two levels)"
+   },
+   "chain": [
+    {
+     "part": "StartSchale_60_16mm"
+    },
+    {
+     "part": "Rutsche_120-60_16mm"
+    },
+    {
+     "part": "SchieneBremse120_60-60_K607_16mm"
+    },
+    {
+     "part": "Kurve90_60_16mm"
+    },
+    {
+     "part": "Gerade88_60-40_16mm"
+    },
+    {
+     "part": "Kurve90_40_16mm"
+    },
+    {
+     "part": "EndSchale_40_16mm"
+    }
+   ]
+  },
+  {
+   "id": "starter-funnel",
+   "name": {
+    "de": "Starter Trichter",
+    "en": "Starter funnel"
+   },
+   "chain": [
+    {
+     "part": "StartSchale_60_16mm"
+    },
+    {
+     "part": "Kurve90_60-50_16mm"
+    },
+    {
+     "part": "Kurve90_50-40_16mm"
+    },
+    {
+     "part": "Trichter_100-60_16mm"
+    },
+    {
+     "part": "Gerade88_60-40_16mm"
+    },
+    {
+     "part": "Kurve90_40_16mm"
+    },
+    {
+     "part": "SchieneGerade120_40-40_16mm"
+    },
+    {
+     "part": "Kurve90_40_16mm"
+    },
+    {
+     "part": "EndSchale_40_16mm"
+    }
+   ]
+  },
+  {
+   "id": "rail-loop",
+   "name": {
+    "de": "Kleine Schienenrunde",
+    "en": "Small rail loop"
+   },
+   "chain": [
+    {
+     "part": "StartSchale_60_16mm"
+    },
+    {
+     "part": "SchieneGerade120_60-50_16mm"
+    },
+    {
+     "part": "SchieneLangeKurve90_R90_50_16mm"
+    },
+    {
+     "part": "SchieneLangeKurve90_R90_50_16mm"
+    },
+    {
+     "part": "Gerade120_50-40_16mm"
+    },
+    {
+     "part": "EndSchale_40_16mm"
+    }
+   ]
+  },
+  {
+   "id": "three-levels",
+   "name": {
+    "de": "Drei Ebenen: Schiene, Bankkurven, Trichter",
+    "en": "Three levels: rails, banked curves, funnel"
+   },
+   "chain": [
+    {
+     "part": "StartSchale_60_16mm"
+    },
+    {
+     "part": "Kurve90_60-50_16mm"
+    },
+    {
+     "part": "Gerade120_50-40_16mm"
+    },
+    {
+     "part": "SchieneRutsche120_100-60_16mm"
+    },
+    {
+     "part": "SchieneBremse120_60-60_K607_16mm"
+    },
+    {
+     "part": "SchieneLangeKurveBank90_R90_60_v2_16mm"
+    },
+    {
+     "part": "SchieneGerade120_60-50_16mm"
+    },
+    {
+     "part": "SchieneLangeKurveBank90_R90_50_v2_16mm"
+    },
+    {
+     "part": "SchieneGerade120_50-40_16mm"
+    },
+    {
+     "part": "Trichter_100-60_16mm"
+    },
+    {
+     "part": "Kurve90_60_16mm",
+     "reversed": true
+    },
+    {
+     "part": "Gerade88_60-40_16mm"
+    },
+    {
+     "part": "Kurve90_40_16mm"
+    },
+    {
+     "part": "Gerade120_40-40_16mm"
+    },
+    {
+     "part": "EndSchale_40_16mm"
+    }
+   ]
+  },
+  {
+   "id": "lift-circuit",
+   "name": {
+    "de": "Lift-Rundkurs (endlos, eine Ebene)",
+    "en": "Lift loop (endless, one level)"
+   },
+   "chain": [
+    {
+     "part": "Lift1_Gerade_16mm"
+    },
+    {
+     "part": "Rutsche_120-60_16mm"
+    },
+    {
+     "part": "Kurve90_60_16mm"
+    },
+    {
+     "part": "Kurve90_60_16mm"
+    },
+    {
+     "part": "Gerade120_60-60_16mm"
+    },
+    {
+     "part": "Gerade120_60-60_16mm"
+    },
+    {
+     "part": "Kurve90_60-50_16mm"
+    },
+    {
+     "part": "Kurve90_50-40_16mm"
+    }
+   ]
+  },
+  {
+   "id": "flipflop-crossing",
+   "name": {
+    "de": "Kippwippe mit Kreuzung (zwei Stränge)",
+    "en": "Flip-flop with crossing (two strands)"
+   },
+   "chain": [
+    {
+     "part": "StartSchale_60_16mm"
+    },
+    {
+     "part": "Kippwippe_120-60_Links_16mm"
+    },
+    {
+     "part": "LangeKurve90_R90_60-50_gespiegelt_16mm"
+    },
+    {
+     "part": "XKreuzung_50-40_16mm"
+    },
+    {
+     "part": "Kurve90_40_16mm"
+    },
+    {
+     "part": "EndSchale_40_16mm"
+    },
+    {
+     "part": "Kurve90_60-50_16mm",
+     "branch": {
+      "from": 1,
+      "port": 3
+     }
+    },
+    {
+     "part": "Gerade60_50-50_16mm"
+    },
+    {
+     "part": "Kurve90_50_16mm"
+    },
+    {
+     "part": "Gerade100_50-40_16mm"
+    },
+    {
+     "part": "Distanz65-0_40-40_16mm"
+    },
+    {
+     "part": "Kurve90_50-40_16mm"
+    },
+    {
+     "part": "EndSchale_40_16mm"
+    }
+   ]
+  },
+  {
+   "id": "tunnel-pretzel",
+   "name": {
+    "de": "Tunnel-Brezel (Quertunnel 32, eine Bahn kreuzt sich selbst)",
+    "en": "Tunnel pretzel (cross tunnel 32, the track crosses itself)"
+   },
+   "chain": [
+    {
+     "part": "StartSchale_60_16mm"
+    },
+    {
+     "part": "Gerade120_60-50_16mm"
+    },
+    {
+     "part": "LangeKurve90_R90_50-40_16mm"
+    },
+    {
+     "part": "Rutsche120_100-60_16mm"
+    },
+    {
+     "part": "Kurve90_60-50_16mm"
+    },
+    {
+     "part": "Gerade60_50-50_16mm"
+    },
+    {
+     "part": "Kurve90_50_16mm"
+    },
+    {
+     "part": "Gerade60_50-50_16mm"
+    },
+    {
+     "part": "Gerade120_50-40_16mm"
+    },
+    {
+     "part": "AdapterTunnelQuer120_40-40_Q32_16mm"
+    },
+    {
+     "part": "EndSchale_40_16mm"
+    }
+   ]
+  },
+  {
+   "id": "endless-eight",
+   "name": {
+    "de": "Endlos-Acht (Lift + Quertunnel 32)",
+    "en": "Endless figure eight (lift + cross tunnel 32)"
+   },
+   "chain": [
+    {
+     "part": "Lift1_Links_16mm"
+    },
+    {
+     "part": "Gerade120_60-50_16mm"
+    },
+    {
+     "part": "Gerade120_50-40_16mm"
+    },
+    {
+     "part": "LangeKurve90_R90_40_16mm",
+     "reversed": true
+    },
+    {
+     "part": "Rutsche120_100-60_16mm"
+    },
+    {
+     "part": "Kurve90_60-50_gespiegelt_16mm"
+    },
+    {
+     "part": "Kurve90_50-40_gespiegelt_16mm"
+    },
+    {
+     "part": "LangeKurve90_R90_40_16mm"
+    },
+    {
+     "part": "LangeKurve90_R90_40_16mm",
+     "reversed": true
+    },
+    {
+     "part": "AdapterTunnelQuer120_40-40_Q32_16mm"
+    },
+    {
+     "part": "Kurve90_40_16mm"
+    },
+    {
+     "part": "Kurve90_40_16mm"
+    }
+   ]
+  },
+  {
+   "id": "flipflop-ymerge",
+   "name": {
+    "de": "Kippwippe und Y-Merge (teilen und wieder vereinen)",
+    "en": "Flip-flop and Y merge (split and rejoin)"
+   },
+   "chain": [
+    {
+     "part": "StartSchale_60_16mm"
+    },
+    {
+     "part": "Kippwippe_120-60_Links_16mm"
+    },
+    {
+     "part": "LangeKurve90_R90_60-50_gespiegelt_16mm"
+    },
+    {
+     "part": "Gerade60_50-40_16mm"
+    },
+    {
+     "part": "Distanz65-0_40-40_16mm"
+    },
+    {
+     "part": "YMerge120_40-40_16mm"
+    },
+    {
+     "part": "Gerade120_40-40_16mm"
+    },
+    {
+     "part": "EndSchale_40_16mm"
+    },
+    {
+     "part": "Kurve90_60-50_16mm",
+     "branch": {
+      "from": 1,
+      "port": 3
+     }
+    },
+    {
+     "part": "Gerade80_50-40_16mm"
+    },
+    {
+     "part": "Kurve90_40_16mm"
+    },
+    {
+     "part": "Gerade120_40-40_16mm"
+    },
+    {
+     "part": "Kurve90_40_16mm",
+     "reversed": true
+    }
+   ]
+  }
+ ]
+}

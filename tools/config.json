@@ -1,0 +1,83 @@
+{
+ "_doc": "Paths relative to the builder folder. The pipeline reads the STL exports directly, no copies.",
+ "stl_dir": "../Fusion_Export/Raststift",
+ "stl_suffix": "_f3",
+ "release_3mf": "../Release/Modular_Marble_Run_16mm_Plain_Release.3mf",
+ "names_en": "../Release/namen_en_16mm.json",
+ "japandi_dir": "../Japandi/STL",
+ "japandi_suffix": "_j1",
+ "japandi_3mf_name": "Modular_Marble_Run_16mm_Japandi_Release.3mf",
+ "lift_dir": "../Lift/v2/STL",
+ "lift_parts": {
+  "LiftFuss_40_16mm": "../Lift/v3/STL/LiftFuss_40_16mm_v3",
+  "LiftMitte_16mm": "LiftMitte_16mm_v2",
+  "LiftKopf_60_16mm": "../Lift/v3/STL/LiftKopf_60_16mm_v3",
+  "LiftSchnecke_Fuss_16mm": "LiftSchnecke_Fuss_16mm_v2",
+  "LiftSchnecke_Mitte_16mm": "LiftSchnecke_Mitte_16mm_v2",
+  "LiftSchnecke_Kopf_16mm": "LiftSchnecke_Kopf_16mm_v2",
+  "LiftKurbel_16mm": "LiftKurbel_16mm_v2"
+ },
+ "lift_slice": "../Japandi/werkzeug/slice_2026-10-07_%s_release.json",
+ "flipflop_dir": "../Kippwippe/v1.1/STL",
+ "flipflop_parts": {
+  "Kippwippe_120-60_16mm": "Kippwippe_120-60_16mm_v1.1_Koerper",
+  "Kippwippe_Wippe_16mm": "Kippwippe_120-60_16mm_v1.1_Wippe",
+  "Kippwippe_Achsstift_16mm": "Kippwippe_120-60_16mm_v1.1_Achsstift_rund"
+ },
+ "flipflop_parts_j": {
+  "Kippwippe_120-60_16mm": "../Japandi/STL/Kippwippe_120-60_16mm_j1.stl"
+ },
+ "flipflop_display": {
+  "Kippwippe_Ansicht_Wippe_Links_16mm": "../Kippwippe/v1.1/STL/builder_ansicht/Kippwippe_Ansicht_Wippe_Links.stl",
+  "Kippwippe_Ansicht_Wippe_Rechts_16mm": "../Kippwippe/v1.1/STL/builder_ansicht/Kippwippe_Ansicht_Wippe_Rechts.stl"
+ },
+ "flipflop_slice": "../Japandi/werkzeug/slice_2026-10-07_%s_release.json",
+ "height_adapter_parts": {
+  "AdapterKippwippe_120-60_16mm": "../Hoehenadapter/STL/AdapterKippwippe_120-60_16mm_v1.stl",
+  "AdapterSpirale_100-60_16mm": "../Hoehenadapter/STL/AdapterSpirale_100-60_16mm_v1.stl",
+  "AdapterXKreuzung_50-40_16mm": "../Hoehenadapter/STL/AdapterXKreuzung_50-40_16mm_v1.stl",
+  "AdapterYMerge120_16mm": "../Hoehenadapter/STL/AdapterYMerge120_16mm_v1.stl",
+  "AdapterGerade100_16mm": "../Hoehenadapter/STL/AdapterGerade100_16mm_v1.stl",
+  "AdapterGerade88_16mm": "../Hoehenadapter/STL/AdapterGerade88_16mm_v1.stl",
+  "AdapterGerade80_16mm": "../Hoehenadapter/STL/AdapterGerade80_16mm_v1.stl",
+  "AdapterGerade60_16mm": "../Hoehenadapter/STL/AdapterGerade60_16mm_v1.stl",
+  "AdapterDistanz65_16mm": "../Hoehenadapter/STL/AdapterDistanz65_16mm_v1.stl",
+  "AdapterDistanz46_16mm": "../Hoehenadapter/STL/AdapterDistanz46_16mm_v1.stl"
+ },
+ "height_adapter_parts_j": {
+  "AdapterKippwippe_120-60_16mm": "../Japandi/STL/AdapterKippwippe_120-60_16mm_j1.stl",
+  "AdapterSpirale_100-60_16mm": "../Japandi/STL/AdapterSpirale_100-60_16mm_j1.stl",
+  "AdapterXKreuzung_50-40_16mm": "../Japandi/STL/AdapterXKreuzung_50-40_16mm_j1.stl",
+  "AdapterYMerge120_16mm": "../Japandi/STL/AdapterYMerge120_16mm_j1.stl",
+  "AdapterGerade100_16mm": "../Japandi/STL/AdapterGerade100_16mm_j1.stl",
+  "AdapterGerade88_16mm": "../Japandi/STL/AdapterGerade88_16mm_j1.stl",
+  "AdapterGerade80_16mm": "../Japandi/STL/AdapterGerade80_16mm_j1.stl",
+  "AdapterGerade60_16mm": "../Japandi/STL/AdapterGerade60_16mm_j1.stl",
+  "AdapterDistanz65_16mm": "../Japandi/STL/AdapterDistanz65_16mm_j1.stl",
+  "AdapterDistanz46_16mm": "../Japandi/STL/AdapterDistanz46_16mm_j1.stl"
+ },
+ "cross_tunnel_parts": {
+  "AdapterTunnelQuer120_40-40_Q32_16mm": "../Quertunnel32/STL/AdapterTunnelQuer120_40-40_Q32_16mm.stl",
+  "AdapterTunnelQuer120_40-40_Q32_V16_16mm": "../Quertunnel32/STL/AdapterTunnelQuer120_40-40_Q32_V16_16mm.stl",
+  "AdapterTunnelQuer95_40-40_Q32_16mm": "../Quertunnel32/STL/AdapterTunnelQuer95_40-40_Q32_16mm.stl"
+ },
+ "cross_tunnel_parts_j": {
+  "AdapterTunnelQuer120_40-40_Q32_16mm": "../Japandi/STL/AdapterTunnelQuer120_40-40_Q32_16mm_j1.stl",
+  "AdapterTunnelQuer120_40-40_Q32_V16_16mm": "../Japandi/STL/AdapterTunnelQuer120_40-40_Q32_V16_16mm_j1.stl",
+  "AdapterTunnelQuer95_40-40_Q32_16mm": "../Japandi/STL/AdapterTunnelQuer95_40-40_Q32_16mm_j1.stl"
+ },
+ "ymerge_parts": {
+  "YMerge120_40-40_16mm": "../YMerge/STL/YMerge120_40-40_16mm_v1.stl",
+  "YMerge120_50-40_16mm": "../YMerge/STL/YMerge120_50-40_16mm_v1.stl",
+  "YMerge120_50-50_16mm": "../YMerge/STL/YMerge120_50-50_16mm_v1.stl",
+  "YMerge120_60-50_16mm": "../YMerge/STL/YMerge120_60-50_16mm_v1.stl",
+  "YMerge120_60-60_16mm": "../YMerge/STL/YMerge120_60-60_16mm_v1.stl"
+ },
+ "ymerge_parts_j": {
+  "YMerge120_40-40_16mm": "../Japandi/STL/YMerge120_40-40_16mm_j1.stl",
+  "YMerge120_50-40_16mm": "../Japandi/STL/YMerge120_50-40_16mm_j1.stl",
+  "YMerge120_50-50_16mm": "../Japandi/STL/YMerge120_50-50_16mm_j1.stl",
+  "YMerge120_60-50_16mm": "../Japandi/STL/YMerge120_60-50_16mm_j1.stl",
+  "YMerge120_60-60_16mm": "../Japandi/STL/YMerge120_60-60_16mm_j1.stl"
+ }
+}
