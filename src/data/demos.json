@@ -3,8 +3,8 @@
   {
    "id": "mini",
    "name": {
-    "de": "Mini-Bahn (gedruckt 20.09.2026, 6 Teile)",
-    "en": "Mini track (printed 2026-09-20, 6 parts)"
+    "de": "Mini-Bahn (6 Teile)",
+    "en": "Mini track (6 parts)"
    },
    "chain": [
     {
@@ -399,6 +399,87 @@
     {
      "part": "Kurve90_40_16mm",
      "reversed": true
+    }
+   ]
+  },
+  {
+   "id": "loop-funnel-flipflop",
+   "name": {
+    "de": "Rundkurs mit Lift, Trichter, Kippwippe und Y-Merge",
+    "en": "Loop with lift, funnel, flip-flop and Y merge"
+   },
+   "chain": [
+    {
+     "part": "Lift3_Links_16mm"
+    },
+    {
+     "part": "Rutsche_120-60_16mm"
+    },
+    {
+     "part": "Kurve90_60-50_16mm"
+    },
+    {
+     "part": "Gerade120_50-40_16mm"
+    },
+    {
+     "part": "Gerade60_40-40_16mm"
+    },
+    {
+     "part": "Gerade80_40-40_16mm"
+    },
+    {
+     "part": "Trichter_100-60_16mm"
+    },
+    {
+     "part": "LangeKurve90_R90_60_16mm"
+    },
+    {
+     "part": "Gerade120_60-60_16mm"
+    },
+    {
+     "part": "Gerade120_60-60_16mm"
+    },
+    {
+     "part": "Kurve90_60_16mm"
+    },
+    {
+     "part": "Kippwippe_120-60_Links_16mm"
+    },
+    {
+     "part": "LangeKurve90_R90_60_16mm",
+     "reversed": true
+    },
+    {
+     "part": "Gerade120_60-50_16mm"
+    },
+    {
+     "part": "Gerade80_50-40_16mm"
+    },
+    {
+     "part": "YMerge120_40-40_16mm"
+    },
+    {
+     "part": "Distanz46-0_40-40_16mm"
+    },
+    {
+     "part": "LangeKurve90_R90_60-50_16mm",
+     "branch": {
+      "from": 11,
+      "port": 3
+     }
+    },
+    {
+     "part": "LangeKurve90_R90_50-40_16mm"
+    },
+    {
+     "part": "Gerade120_40-40_16mm"
+    },
+    {
+     "part": "Kurve90_40_16mm",
+     "reversed": true
+    },
+    {
+     "part": "Distanz65-0_40-40_16mm"
     }
    ]
   }

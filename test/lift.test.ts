@@ -117,6 +117,15 @@ describe('Circuit', () => {
     expect(st[0].vOut).toBe(120);                        // slow out of the head (estimated)
     expect(st[0].estimate).toBe(true);
   });
+  it('demo "loop-funnel-flipflop": lift +3, funnel, flip-flop and Y merge close into a loop', () => {
+    const L = solveChain(demo('loop-funnel-flipflop'));
+    expect(L.ring).toBe(true);
+    expect(L.issues.filter((i) => i.level === 'error')).toEqual([]);
+    expect(L.issues.some((i) => i.code === 'merge')).toBe(true);           // the flip-flop branch ends in the Y
+    expect([L.placed.length, L.adapters.length, L.strands.length, pinSum(L), Math.round(L.height)]).toEqual([22, 15, 2, 62, 188]);
+    const st = simulate(L, DEFAULT_SIM);
+    expect(st.every((s) => s.status !== 'stop' && s.status !== 'error')).toBe(true);
+  });
   it('no circuit if the end does not plug exactly into the start', () => {
     const L = solve('Lift1_Gerade', 'Rutsche_120-60', 'Kurve90_60', 'Kurve90_60', 'Gerade120_60-60', 'Gerade120_60-60', 'Kurve90_60-50');
     expect(L.ring).toBe(false);
