@@ -186,7 +186,7 @@ function fixture(meta: Record<string, string>, names: string[], mtime = new Date
   return zipSync({ '3D/3dmodel.model': [strToU8(model), { mtime }], 'Metadata/model_settings.config': [strToU8(cfg), { mtime }], 'Metadata/plate_1.png': new Uint8Array(10) });
 }
 const MW_META = { Title: '16mm Modular Marble Run', Designer: 'OverEngineer', DesignerUserId: '3696494148', License: 'Standard Digital File License', Origin: 'original',
-  ProfileTitle: 'Japandi – all parts', ProfileUserId: '3696494148', ProfileUserName: 'OverEngineer', DesignRegion: 'US', DesignModelId: 'US0000000000aa', DesignProfileId: '991400001' };
+  ProfileTitle: 'Japandi – all parts', ProfileUserId: '3696494148', ProfileUserName: 'OverEngineer', DesignRegion: 'US', DesignModelId: 'US3ddce4c6c49f52', DesignProfileId: '991400001' };
 const ALL = [...NAMES].slice(0, 60);
 
 describe('MakerWorld key', () => {
@@ -194,10 +194,10 @@ describe('MakerWorld key', () => {
     const r = checkMakerWorld3mf(fixture(MW_META, ALL), 'x.3mf', NAMES);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.key).toMatchObject({ designerUserId: '3696494148', modelId: 'US0000000000aa', profileId: '991400001', profileTitle: 'Japandi – all parts', parts: 60 });
+    expect(r.key).toMatchObject({ designerUserId: '3696494148', modelId: 'US3ddce4c6c49f52', profileId: '991400001', profileTitle: 'Japandi – all parts', parts: 60 });
     expect(r.key.stamp.slice(0, 16)).toBe('2026-10-20T10:30');
     expect(keyValid(r.key)).toBe(true);
-    expect(keyMetadata(r.key)).toMatchObject({ Designer: 'OverEngineer', DesignProfileId: '991400001', DesignModelId: 'US0000000000aa', License: 'Standard Digital File License' });
+    expect(keyMetadata(r.key)).toMatchObject({ Designer: 'OverEngineer', DesignProfileId: '991400001', DesignModelId: 'US3ddce4c6c49f52', License: 'Standard Digital File License' });
   });
   it('rejects: no 3MF, no designer (e.g. the local release file), other designer, too few parts, outdated', () => {
     expect(checkMakerWorld3mf(strToU8('hello world, no zip file here'), 'a.3mf', NAMES)).toMatchObject({ ok: false, reason: 'notZip' });
@@ -209,6 +209,10 @@ describe('MakerWorld key', () => {
     expect(checkMakerWorld3mf(fixture(MW_META, ALL), 'e.3mf', NAMES, rules)).toMatchObject({ ok: false, reason: 'outdated' });
     const rules2 = { ...MW_RULES, modelIds: ['US999'] };
     expect(checkMakerWorld3mf(fixture(MW_META, ALL), 'f.3mf', NAMES, rules2)).toMatchObject({ ok: false, reason: 'otherModel' });
+    // the published 16 mm page (design 3412215): another model ID of the same designer is rejected with the default rules
+    expect(checkMakerWorld3mf(fixture({ ...MW_META, DesignModelId: 'US0000000000aa' }, ALL), 'g.3mf', NAMES)).toMatchObject({ ok: false, reason: 'otherModel' });
+    expect(checkMakerWorld3mf(fixture({ ...MW_META, DesignModelId: '3412215' }, ALL), 'h.3mf', NAMES).ok).toBe(true);
+    expect(MW_RULES.pageUrl).toContain('makerworld.com/en/models/3412215');
   });
   it('reads the ZIP times from the central directory', () => {
     const z = fixture(MW_META, ALL, new Date('2026-09-20T21:54:00'));

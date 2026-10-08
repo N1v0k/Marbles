@@ -11,14 +11,15 @@ import { unzipSync, strFromU8 } from 'fflate';
 export const MW_RULES = {
   /** MakerWorld user ID of the designer */
   designerUserIds: ['3696494148'],
-  /** DesignModelId of the 16 mm model page, set after publishing (empty: any model by the designer with 16 mm parts). */
-  modelIds: [] as string[],
+  /** DesignModelId of the 16 mm model page (empty: any model by the designer with 16 mm parts). MakerWorld writes the
+   *  page's model ID (US…, field modelId of design 3412215) into the 3MF; the numeric design ID is accepted as well. */
+  modelIds: ['US3ddce4c6c49f52', '3412215'] as string[],
   /** minimum number of known 16 mm part names the profile must contain (the all-parts profile has over 100) */
   minParts: 20,
   /** oldest valid profile version (ISO date); empty = any. Raise it after a profile update to require a new download. */
   minStamp: '',
-  /** model page linked in the hint (set after publishing) */
-  pageUrl: '',
+  /** model page linked in the hint */
+  pageUrl: 'https://makerworld.com/en/models/3412215-16mm-modular-marble-run-japandi-snap-together',
 };
 
 export interface MwKey {
