@@ -11,7 +11,7 @@ const thumb = (p: Part): string | undefined => (isJapandi() ? THUMBS_J[p.id] : u
 import { Viewer, colorFor, type Ghost, type GhostItem, type Marker } from './viewer3d';
 import { t, tf, pick, num, partName, liftName, setLang, getLang, type Lang } from './i18n';
 import { gridInfo, gridRef, nearRing } from './grid';
-import { findConnections, findRunAdjustments, applyConnection, mainEnd, strandEnd, type ConnectTarget, type ConnectSuggestion } from './connect';
+import { findConnections, findRunAdjustments, connectGap, applyConnection, mainEnd, strandEnd, type ConnectTarget, type ConnectSuggestion } from './connect';
 import { loadState, saveState, History, shareUrl, linkHash, decodeChain, sanitizeElements, sanitizeSim, cloneChain, toPlain, type AppState } from './state';
 import { bom, bomCsv, trackJson, makerworldList, download, exportName } from './export';
 import { tunnelAuto, tunnelLaneTargets, hasTunnelVariant } from './tunnel';
@@ -719,6 +719,17 @@ function openConnect() {
   if (!dlg.open) dlg.showModal();
   if (goals.length === 1) (box.querySelector('button[data-goal]') as HTMLButtonElement | null)?.click();
 }
+/** Nothing found: say how far the end is from the target and why it cannot be closed - off the grid because of off-grid
+ *  parts (only another off-grid part or a different route helps), or on the grid but not fillable with straights here. */
+function noConnectionText(g: ConnectGoal, strand: number, maxParts: number): string {
+  const gap = g.targets.length === 1 && !g.targets[0].tail ? connectGap(state.elements, g.targets[0].t, strand) : null;
+  if (!gap) return tf('connectNone', { n: maxParts });
+  let s = tf('connectGap', { along: num(gap.along), side: num(Math.abs(gap.side)) });
+  if (!gap.onGrid && gap.offGrid.length)
+    s += ' ' + tf('connectOffGrid', { parts: gap.offGrid.map((i) => `${i + 1}. ${shortName(layout.placed[i].part)}`).join(', ') });
+  else s += ' ' + tf('connectNone', { n: maxParts });
+  return s;
+}
 /** Search each target port in turn (yielding so the UI stays responsive); results are validated and sorted by part count. */
 async function runConnect(g: ConnectGoal) {
   const run = ++connectRun;
@@ -751,7 +762,7 @@ async function runConnect(g: ConnectGoal) {
   // fewest parts changed (added + removed) first; at equal cost keep the track as it is (no removal) before re-filling
   found.sort((x, y) => x.s.n + x.s.drop - (y.s.n + y.s.drop) || +!!x.s.edits - +!!y.s.edits || x.s.drop - y.s.drop || x.s.err - y.s.err);
   const top = found.slice(0, 5);
-  if (!top.length) { res.innerHTML = `<p class="small">${tf('connectNone', { n: maxParts })}</p>`; return; }
+  if (!top.length) { res.innerHTML = `<p class="small">${esc(noConnectionText(g, strand, maxParts))}</p>`; return; }
   const head = (f: typeof found[number]) => f.s.edits ? t('connectRun')
     : f.s.drop ? tf('connectPartsDrop', { n: f.s.n + (f.tail ? 1 : 0), k: f.s.drop }) : tf('connectParts', { n: f.s.n + (f.tail ? 1 : 0) });
   res.innerHTML = top.map((f, i) => `<div class="connect-row"><div><b>${esc(head(f))}</b> <span class="small">${esc(f.s.text)}${f.tail ? ' + ' + esc(tailName(f.tail)) : ''}</span></div>` +

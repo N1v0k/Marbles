@@ -2,7 +2,7 @@
 // circuit (lift entry, all four head directions), free socket on the same or a lower level, unreachable targets,
 // part set, insertion before branches, open end of a branch, backing up, re-filling a straight run, runtime.
 import { describe, it, expect } from 'vitest';
-import { findConnections, findRunAdjustments, connectCandidates, applyConnection, mainEnd, strandEnd, trimStrand, type ConnectTarget, type ConnectSuggestion, type ConnectOptions } from '../src/connect';
+import { findConnections, findRunAdjustments, connectGap, connectCandidates, applyConnection, mainEnd, strandEnd, trimStrand, type ConnectTarget, type ConnectSuggestion, type ConnectOptions } from '../src/connect';
 import { solveChain, type ChainElement } from '../src/chain';
 import { catalog, SCALE } from '../src/catalog';
 import { chain, demo, ids } from './helpers';
@@ -228,6 +228,34 @@ describe('Branch end, backing up, straight runs', () => {
       const q = branchEnd(out);
       expect(Math.hypot(q.out!.p[0] - t.p[0], q.out!.p[1] - t.p[1]), s.text).toBeLessThan(0.4);
       expect(errors(out), s.text).toEqual([]);
+    }
+  });
+  // Another user's track: lift loop with a spiral and Gerade88 (both off-grid); the end should run into the free cross
+  // lane of the crossing (part 3) but stops 6.4 mm short
+  const SPIRAL = 'm1.24.g.2h.l.52.23.j.l.3g.2w.13.3e.3n';
+  const laneOf = (els: ChainElement[]): Extract<ConnectTarget, { kind: 'port' }> => {
+    const f = solveChain(els).freePorts.find((q) => q.idx === 2 && q.port === 3)!; return { kind: 'port', p: f.w.p, n: f.w.n };
+  };
+  it('connectGap: 6.4 mm ahead, not a whole number of grid thirds, caused by the spiral and Gerade88', () => {
+    const els = decodeChain(SPIRAL)!.elements, t = laneOf(els);
+    const g = connectGap(els, t)!;
+    expect(g.along).toBeCloseTo(6.4, 2); expect(g.side).toBeCloseTo(0, 2);
+    expect(g.onGrid).toBe(false);
+    expect(g.offGrid.map((i) => ids(els)[i])).toEqual(['Spirale_100-60', 'Gerade88_60-40']);
+    expect(findRunAdjustments(els, t)).toEqual([]);
+  });
+  it('two parallel runs: with a slide instead of the spiral, the Gerade88 run and the opposite run both grow', () => {
+    const els = decodeChain(SPIRAL)!.elements; els[5] = { part: 'Rutsche120_100-60_16mm' };
+    const t = laneOf(els);
+    expect(connectGap(els, t)!.along).toBeCloseTo(14.933, 2);                    // still off: Gerade88 is 2 units short
+    const r = findRunAdjustments(els, t);
+    expect(r.length).toBeGreaterThanOrEqual(1);
+    expect(r[0].edits!.map((e) => [e.at, e.count])).toEqual([[6, 1], [11, 2]]);
+    expect(r[0].edits![0].parts.map((p) => p.part)).toEqual(['Gerade60_60-50_16mm', 'Gerade60_50-40_16mm']);   // 64 instead of 46.9
+    for (const s of r) {
+      const L = solveChain(applyConnection(els, s));
+      expect(L.issues.filter((i) => i.level === 'error'), s.text).toEqual([]);
+      expect(L.freePorts.some((q) => q.idx === 2 && q.port === 3), s.text).toBe(false);   // docked into the lane
     }
   });
   it('a loop is only closed by the main strand', () => {

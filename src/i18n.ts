@@ -232,6 +232,8 @@ const T: Record<string, [string, string]> = {
   connectSearching: ['Suche …', 'Searching …'],
   connectNone: ['Keine Teilefolge gefunden (bis {n} Teile). Liegt das Ende neben dem Raster, zuerst mit Distanz65, Gerade80 oder Gerade100 ausgleichen.', 'No part sequence found (up to {n} parts). If the end is off the grid, compensate first with Distanz65, Gerade80 or Gerade100.'],
   connectApply: ['Einbauen', 'Add'],
+  connectGap: ['Vom offenen Ende bis zum Ziel: {along} mm in Fahrtrichtung, {side} mm seitlich.', 'From the open end to the target: {along} mm ahead, {side} mm sideways.'],
+  connectOffGrid: ['Das ist kein Vielfaches des Rasters (⅓ von 8 mm): diese Teile liegen neben dem Raster und verschieben alles danach – {parts}. Gerade Teile können das nicht ausgleichen; tausche eines davon (z. B. Spirale gegen Rutsche120 100-60) oder plane einen anderen Weg.', 'That is not a whole number of grid thirds (⅓ of 8 mm): these parts are off the grid and shift everything after them – {parts}. Straights cannot make up for it; swap one of them (e.g. the spiral for a Slide120 100-60) or plan another route.'],
   connectDone: ['{n} Teile eingebaut.', '{n} parts added.'],
   connectDoneRun: ['Gerade Strecke angepasst: {n} Teile ersetzt.', 'Straight run changed: {n} parts replaced.'],
   connectDoneTunnel: ['{n} Teile und {tunnel} eingebaut.', '{n} parts and {tunnel} added.'],

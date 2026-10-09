@@ -13,6 +13,7 @@
 import { catalog, entryExit, requiredFeedRim, LEVEL, SCALE, type Part } from './catalog';
 import { apply, rotM, solveChain, type ChainElement, type Layout } from './chain';
 import { t, tf, partName } from './i18n';
+import { offGrid, GRID } from './grid';
 
 /** Target: loop (entry of element 0) or a free socket in world coordinates (absolute z = base + PORT_Z, n horizontal,
  *  pointing out of the target part). rimCode: rim the last part must deliver (like requiredFeedRim or the free lane of
@@ -92,9 +93,9 @@ function moveLabel(p: Part, turn: number): string {
 interface Move extends ConnectMove { fu: number; lu: number; geo: string; idx: number }
 let MOVES: Move[] | null = null;
 /** Move of a part: entry at the open end (running direction +x), exit relative to it - placed the way solveChain does. */
-function buildMoves(): Move[] {
+function buildMoves(specs = candidateSpecs()): Move[] {
   const out: Move[] = [];
-  for (const sp of candidateSpecs()) {
+  for (const sp of specs) {
     const p = catalog.byId.get(sp.id);
     if (!p || !p.released || (sp.reversed && !p.reversible)) continue;
     const { entry, exit } = entryExit(p, sp.reversed);
@@ -119,6 +120,13 @@ function buildMoves(): Move[] {
   return out;
 }
 function moves(): Move[] { return (MOVES ??= buildMoves()); }
+let RUN_MOVES: Move[] | null = null;
+/** Straights for re-filling a run: the flat straights and spacers of the set plus Gerade88 (60-40, 88 grid units) - not
+ *  offered for appending, but a run that contains it can be changed. */
+function runMoves(): Move[] {
+  return (RUN_MOVES ??= buildMoves([...candidateSpecs(), { id: 'Gerade88_60-40_16mm', reversed: false }])
+    .filter((m) => m.turn === 0 && m.lu === 0 && m.dLevel === 0 && m.geo.startsWith('S')));
+}
 
 /** The assistant's part set with its moves (for tests and the help). */
 export function connectCandidates(): ConnectMove[] {
@@ -403,6 +411,20 @@ function searchFrom(elements: ChainElement[], target: ConnectTarget, tgFull: Non
   return result;
 }
 
+/** Why nothing connects: the gap from the open end of the strand to the target in its running direction (along, + =
+ *  target ahead) and sideways, whether that gap is a whole number of grid thirds, and the off-grid parts in the chain
+ *  (indices) that shift it. null if the target does not exist or the strand has no open end. */
+export function connectGap(elements: ChainElement[], target: ConnectTarget, strand = 0): { along: number; side: number; onGrid: boolean; offGrid: number[] } | null {
+  const L = solveChain(elements);
+  const tg = resolveTarget(L, target), st = L.strands[strand];
+  const end = st && st.idxs.length ? L.placed[st.idxs[st.idxs.length - 1]] : null;
+  if (!tg || !end?.connected || !end.out) return null;
+  const u = end.out.n, d = [tg.p[0] - end.out.p[0], tg.p[1] - end.out.p[1]];
+  const along = d[0] * u[0] + d[1] * u[1], side = -d[0] * u[1] + d[1] * u[0];
+  const third = (v: number) => { const k = v / (GRID / 3); return Math.abs(k - Math.round(k)) * (GRID / 3) <= TOL; };
+  return { along, side, onGrid: third(along) && third(side), offGrid: L.placed.filter((q) => q.connected && offGrid(q.part)).map((q) => q.idx) };
+}
+
 // ---------------------------------------------------------------- Re-fill straight runs
 /** Replaces element ranges (the first part of a range keeps its branch anchor; anchors pointing at replaced parts move to
  *  the new part at the same position, or the last one). */
@@ -424,7 +446,7 @@ interface Run { at: number; count: number; units: number; u: [number, number]; r
 /** Straight runs of a strand: maximal sequences of straights/spacers from the assistant's set (flat, no turn). */
 function strandRuns(elements: ChainElement[], L: Layout, strand: number): Run[] {
   const st = L.strands[strand]; if (!st) return [];
-  const S = moves().filter((m) => m.turn === 0 && m.lu === 0 && m.dLevel === 0 && m.geo.startsWith('S'));
+  const S = runMoves();
   const runs: Run[] = []; let cur: Run | null = null;
   for (const i of st.idxs) {
     const q = L.placed[i], e = elements[i];
@@ -441,7 +463,7 @@ function strandRuns(elements: ChainElement[], L: Layout, strand: number): Run[] 
 /** Straight sequences of exactly `units` grid units (up to maxN parts) whose rims chain from rimIn to rimOut, best first:
  *  fewest parts, fewest fillers, most parts kept from the old run. */
 function fillRun(units: number, rimIn: number | null, rimOut: number | null, old: string[], maxN = 4): Move[][] {
-  const S = moves().filter((m) => m.turn === 0 && m.lu === 0 && m.dLevel === 0 && m.geo.startsWith('S'));
+  const S = runMoves();
   const out: Move[][] = []; const seq: Move[] = [];
   const go = (left: number, rim: number | null) => {
     if (left === 0 && seq.length && (rimOut == null || rim === rimOut)) { out.push(seq.slice()); return; }
@@ -457,8 +479,24 @@ function fillRun(units: number, rimIn: number | null, rimOut: number | null, old
   return out.sort((a, b) => cmpScore(key(a), key(b))).filter((ms, i, a) => a.findIndex((x) => x.map((m) => m.idx).join() === ms.map((m) => m.idx).join()) === i);
 }
 
-/** Lengthen or shorten one straight run of the strand - or two perpendicular ones - so that its open end, already pointing
- *  the right way, arrives at the target: everything after a run moves with it. For the case appending cannot fix: the
+/** Lengths (grid units) a run from rimIn to rimOut can have with up to maxN straights -> fewest parts for it. */
+const LEN_CACHE = new Map<string, Map<number, number>>();
+function runLengths(rimIn: number | null, rimOut: number | null, maxN = 4): Map<number, number> {
+  const key = `${rimIn}|${rimOut}|${maxN}`, hit = LEN_CACHE.get(key); if (hit) return hit;
+  const out = new Map<number, number>(), S = runMoves();
+  const go = (len: number, rim: number | null, n: number) => {
+    if (n && (rimOut == null || rim === rimOut) && !(out.get(len)! <= n)) out.set(len, n);
+    if (n >= maxN) return;
+    for (const m of S) if (rim == null || m.rimNeed == null || m.rimNeed === rim) go(len + m.fu, m.rimOut ?? rim, n + 1);
+  };
+  go(0, rimIn, 0);
+  LEN_CACHE.set(key, out);
+  return out;
+}
+
+/** Lengthen or shorten one straight run of the strand - or two perpendicular ones, or two parallel ones (one longer, the
+ *  other one running the opposite way also longer: the difference closes the gap) - so that its open end, already
+ *  pointing the right way, arrives at the target: everything after a run moves with it. For the case appending cannot fix: the
  *  end is a few grid steps short or long (or beside the target) because an earlier straight has the wrong length.
  *  Verified with solveChain (target reached, no new errors). n = parts in the new runs, drop = parts they replace. */
 export function findRunAdjustments(elements: ChainElement[], target: ConnectTarget, opts: { strand?: number; max?: number } = {}): ConnectSuggestion[] {
@@ -488,6 +526,21 @@ export function findRunAdjustments(elements: ChainElement[], target: ConnectTarg
     const ka = units(d[0] * a.u[0] + d[1] * a.u[1]), kb = units(d[0] * b.u[0] + d[1] * b.u[1]);
     if (ka && kb) plans.push([{ run: a, du: ka }, { run: b, du: kb }]);
   }
+  // two parallel runs along d: du_a + sb * du_b = k (sb = +1 same direction, -1 opposite); fewest parts, smallest change
+  const pairs: { plan: { run: Run; du: number }[]; cost: number }[] = [];
+  for (const a of runs) for (const b of runs) {
+    const sb = a.u[0] * b.u[0] + a.u[1] * b.u[1];
+    if (b.at <= a.at || Math.abs(Math.abs(sb) - 1) > 0.01) continue;
+    const side = Math.abs(-d[0] * a.u[1] + d[1] * a.u[0]), k = units(d[0] * a.u[0] + d[1] * a.u[1]);
+    if (side > TOL || k == null) continue;
+    const lb = runLengths(b.rimIn, b.rimOut);
+    for (const [la, na] of runLengths(a.rimIn, a.rimOut)) {
+      const dua = la - a.units, dub = Math.round((k - dua) * sb), nb = lb.get(b.units + dub);
+      if (!dua || !dub || nb == null) continue;
+      pairs.push({ plan: [{ run: a, du: dua }, { run: b, du: dub }], cost: (na + nb) * 1000 + Math.abs(dua) + Math.abs(dub) });
+    }
+  }
+  plans.push(...pairs.sort((x, y) => x.cost - y.cost).slice(0, 12).map((p) => p.plan));
   const result: ConnectSuggestion[] = [];
   for (const plan of plans) {
     const fills = plan.map(({ run, du }) => fillRun(run.units + du, run.rimIn, run.rimOut, run.old).slice(0, 4));
@@ -501,7 +554,8 @@ export function findRunAdjustments(elements: ChainElement[], target: ConnectTarg
       const L = solveChain(els);
       if (L.issues.filter((i) => i.level === 'error').length > baseErr) continue;
       const s2 = L.strands[strand], q = s2 && L.placed[s2.idxs[s2.idxs.length - 1]];
-      if (target.kind === 'ring' ? !L.ring : !q?.out || Math.hypot(q.out.p[0] - tg.p[0], q.out.p[1] - tg.p[1]) > TOL) continue;
+      // the part's own exit (out moves on to the far end of a lane it docks into)
+      if (target.kind === 'ring' ? !L.ring : !q?.exit || Math.hypot(q.exit.p[0] - tg.p[0], q.exit.p[1] - tg.p[1]) > TOL) continue;
       const added = edits.flatMap((x) => x.parts), removed = plan.reduce((n, p) => n + p.run.count, 0);
       const text = plan.map(({ run }, i) => `${run.old.map(shortMove).join(' + ')} → ${combo[i].map((m) => labelOf(m.part, m.turn)).join(' + ')}`).join('; ');
       result.push({ elements: added, n: added.length, err: 0, levels: 0, text, strand, drop: removed, edits });
@@ -510,4 +564,4 @@ export function findRunAdjustments(elements: ChainElement[], target: ConnectTarg
   }
   return result.sort((a, b) => a.n + a.drop - (b.n + b.drop)).slice(0, maxOut);
 }
-function shortMove(s: string): string { const m = moves().find((x) => x.part + (x.reversed ? '*' : '') === s); return m ? labelOf(m.part, m.turn) : s; }
+function shortMove(s: string): string { const m = runMoves().find((x) => x.part + (x.reversed ? '*' : '') === s); return m ? labelOf(m.part, m.turn) : s; }
