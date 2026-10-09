@@ -11,6 +11,7 @@ const thumb = (p: Part): string | undefined => (isJapandi() ? THUMBS_J[p.id] : u
 import { Viewer, colorFor, type Ghost, type GhostItem, type Marker } from './viewer3d';
 import { t, tf, pick, num, partName, liftName, setLang, getLang, type Lang } from './i18n';
 import { gridInfo, gridRef, nearRing } from './grid';
+import { connectPreview } from './preview';
 import { findConnections, findRunAdjustments, connectGap, applyConnection, mainEnd, strandEnd, type ConnectTarget, type ConnectSuggestion } from './connect';
 import { loadState, saveState, History, shareUrl, linkHash, decodeChain, sanitizeElements, sanitizeSim, cloneChain, toPlain, type AppState } from './state';
 import { bom, bomCsv, trackJson, makerworldList, download, exportName } from './export';
@@ -765,7 +766,13 @@ async function runConnect(g: ConnectGoal) {
   if (!top.length) { res.innerHTML = `<p class="small">${esc(noConnectionText(g, strand, maxParts))}</p>`; return; }
   const head = (f: typeof found[number]) => f.s.edits ? t('connectRun')
     : f.s.drop ? tf('connectPartsDrop', { n: f.s.n + (f.tail ? 1 : 0), k: f.s.drop }) : tf('connectParts', { n: f.s.n + (f.tail ? 1 : 0) });
-  res.innerHTML = top.map((f, i) => `<div class="connect-row"><div><b>${esc(head(f))}</b> <span class="small">${esc(f.s.text)}${f.tail ? ' + ' + esc(tailName(f.tail)) : ''}</span></div>` +
+  // top view of each suggestion: what stays, what is new, what goes, where the end connects
+  const preview = (f: typeof found[number]) => {
+    const work = connectWork(f.s, f.tail), L2 = solveChain(work), st = L2.strands[f.s.strand];
+    const q = st?.idxs.length ? L2.placed[st.idxs[st.idxs.length - 1]] : null, e = f.tail ? null : q?.exit;
+    return connectPreview({ elements: state.elements, L: layout }, { elements: work, L: L2 }, e ? [e.p[0], e.p[1]] : null, t('connectPreview'));
+  };
+  res.innerHTML = top.map((f, i) => `<div class="connect-row">${preview(f)}<div><b>${esc(head(f))}</b> <span class="small">${esc(f.s.text)}${f.tail ? ' + ' + esc(tailName(f.tail)) : ''}</span></div>` +
     `<button type="button" class="small-btn primary" data-apply="${i}">${t('connectApply')}</button></div>`).join('');
   res.querySelectorAll<HTMLButtonElement>('button[data-apply]').forEach((b) => b.addEventListener('click', () => {
     const f = top[Number(b.dataset.apply)];

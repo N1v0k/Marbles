@@ -887,6 +887,8 @@ await test('"Connect" re-fills a straight run: the branch ends 7.5 mm short behi
   const goals = await kb('s.connectGoals');
   await page.click(`#connect-goals button[data-goal="${goals.indexOf('entry')}"]`);
   await page.waitForSelector('#connect-results button[data-apply]', { timeout: 20000 });
+  eq(await page.locator('#connect-results .connect-row svg.cp').count(), await page.locator('#connect-results button[data-apply]').count(), 'a top-view preview per suggestion');
+  eq(await page.locator('#connect-results .connect-row').first().locator('svg.cp .cp-new').count(), 1, 'preview: one new part');
   await page.click('#connect-results button[data-apply="0"]'); await page.waitForTimeout(800);
   const after = await ids();
   eq(after.length, ids0.length, 'one part replaced, none added');
