@@ -34,7 +34,11 @@ export interface RunEdit { at: number; count: number; parts: ChainElement[] }
 
 /** strand: strand whose open end is led to the target (0 = main strand, default). maxDrop: also search with up to this
  *  many parts removed from the end of that strand (a dead end often needs a different part a step earlier). */
-export interface ConnectOptions { maxParts?: number; max?: number; timeMs?: number; strand?: number; maxDrop?: number }
+export interface ConnectOptions { maxParts?: number; max?: number; timeMs?: number; strand?: number; maxDrop?: number;
+  /** stop once routes would need more than this many parts beyond the shortest one found (saves time) */
+  slack?: number;
+  /** only routes with at most this many parts changed (added + removed), e.g. when a cheaper fix is already known */
+  maxCost?: number }
 
 /** A candidate in one mounting orientation and what it does to the open end (relative to the running direction at the entry). */
 export interface ConnectMove {
@@ -264,12 +268,21 @@ export function findConnections(elements: ChainElement[], target: ConnectTarget,
   const tg = resolveTarget(L, target); if (!tg) return [];
   const ref = targetRef(elements, L, target);
   const out: ConnectSuggestion[] = [];
+  let maxCost = opts.maxCost ?? Infinity;
   for (let drop = 0; drop <= maxDrop && Date.now() < deadline; drop++) {
+    const maxParts = Math.min(opts.maxParts ?? 8, maxCost - drop);
+    if (maxParts < 1) break;
     const els = trimStrand(elements, strand, drop); if (!els) break;
     if (ref && !els.includes(ref.el)) break;                              // never remove the target part itself
     // later drops share the remaining time; each gets at least its fair part
     const share = (deadline - Date.now()) / (maxDrop - drop + 1);
-    out.push(...searchFrom(els, target, tg, L.placed[0]?.S ?? 0, strand, drop, { ...opts, timeMs: share }));
+    // starting with the part that was just removed is the same route as one drop fewer
+    const first = elements[strandEnd(elements, strand) - drop + 1];
+    const found = searchFrom(els, target, tg, L.placed[0]?.S ?? 0, strand, drop, { ...opts, maxParts, timeMs: share })
+      .filter((s) => !drop || s.elements[0].part !== first.part || !!s.elements[0].reversed !== !!first.reversed);
+    out.push(...found);
+    // with slack: later drops only for routes about as cheap as the best so far
+    if (opts.slack != null && found.length) maxCost = Math.min(maxCost, Math.min(...found.map((x) => x.n + x.drop)) + opts.slack);
   }
   const changed = (s: ConnectSuggestion) => s.n + s.drop;
   return out.sort((a, b) => changed(a) - changed(b) || a.drop - b.drop || a.n - b.n).slice(0, maxOut);
@@ -387,6 +400,7 @@ function searchFrom(elements: ChainElement[], target: ConnectTarget, tgFull: Non
   const result: ConnectSuggestion[] = [];
   const seen = new Set<string>();
   for (let N = 1; N <= maxParts && result.length < maxOut && verified < VERIFY_MAX && !timeUp(); N++) {
+    if (opts.slack != null && result.length && N > result[0].n + opts.slack) break;
     const a = Math.ceil(N / 2), b = N - a;
     while (fwd.length <= a && expandF(fwd.length - 1));
     while (bwd.length <= b && expandB(bwd.length - 1));

@@ -242,7 +242,8 @@ body.japandi .plate-color { border-radius: 0; }
 #issues-list li.info { background: #eef4fb; }
 body.japandi #issues-list li.info { background: #e6e8ec; }
 .connect-goals { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
-.connect-goals button { text-align: left; }
+.connect-goals button { text-align: left; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.connect-badge { white-space: nowrap; }
 .connect-goals button.on { outline: 2px solid var(--accent, #26a69a); }
 .connect-results { display: flex; flex-direction: column; gap: 6px; margin: 6px 0 10px; max-height: 50vh; overflow: auto; }
 .connect-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; }

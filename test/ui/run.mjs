@@ -883,10 +883,12 @@ await test('"Connect" at the end of any strand: a branch leads into the entrance
 await test('"Connect" re-fills a straight run: the branch ends 7.5 mm short behind a Y merge, Distanz46 becomes a Gerade60; undo', async () => {
   await fresh({ hash: '#t=m1.9.23.x.u.c.2w.g.2h.12@7:2.y*.g.d.s*.9.52&s=j' });
   const ids0 = await ids();
-  await page.click('#btn-connect'); await page.waitForTimeout(200);
-  const goals = await kb('s.connectGoals');
-  await page.click(`#connect-goals button[data-goal="${goals.indexOf('entry')}"]`);
+  await page.click('#btn-connect');
+  // all goals are searched; the cheapest (here: the entrance of part 1, 2 parts changed) is listed first and shown
   await page.waitForSelector('#connect-results button[data-apply]', { timeout: 20000 });
+  const goals = await kb('s.connectGoals');
+  eq(Number(await page.getAttribute('#connect-goals button[data-goal]:first-child', 'data-goal')), goals.indexOf('entry'), 'cheapest goal first');
+  ok(await page.locator(`#connect-goals button[data-goal="${goals.indexOf('entry')}"]`).evaluate((b) => b.classList.contains('on')), 'and opened');
   eq(await page.locator('#connect-results .connect-row svg.cp').count(), await page.locator('#connect-results button[data-apply]').count(), 'a top-view preview per suggestion');
   eq(await page.locator('#connect-results .connect-row').first().locator('svg.cp .cp-new').count(), 1, 'preview: one new part');
   await page.click('#connect-results button[data-apply="0"]'); await page.waitForTimeout(800);

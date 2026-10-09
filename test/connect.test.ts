@@ -281,6 +281,18 @@ describe('Branch end, backing up, straight runs', () => {
     const e = solveChain(els).placed[0].entry!;
     expect(findRunAdjustments(els, { kind: 'port', p: e.p, n: e.n, rimCode: 50 }, { strand: 1 })).toEqual([]);
   });
+  it('backing up never re-adds the part it just removed; maxCost and slack cap the search', () => {
+    const els = chain('Lift1_Gerade', 'Gerade120_60-60');
+    const r = find('drop-readd', els, { kind: 'ring' }, { maxParts: 10, maxDrop: 1, max: 8 });
+    expect(r.length).toBeGreaterThan(0);
+    for (const s of r) if (s.drop) expect(s.elements[0].part, s.text).not.toBe('Gerade120_60-60_16mm');
+    const best = Math.min(...r.map((s) => s.n + s.drop));
+    const capped = find('maxcost', els, { kind: 'ring' }, { maxParts: 10, maxDrop: 1, max: 8, maxCost: best });
+    expect(capped.length).toBeGreaterThan(0);
+    expect(capped.every((s) => s.n + s.drop <= best)).toBe(true);
+    const slack = find('slack', els, { kind: 'ring' }, { maxParts: 10, maxDrop: 1, max: 8, slack: 0 });
+    expect(slack.every((s) => s.n + s.drop === best)).toBe(true);
+  });
   it('a loop is only closed by the main strand', () => {
     expect(findConnections(decodeChain(TRACK)!.elements, { kind: 'ring' }, { strand: 1 })).toEqual([]);
   });
