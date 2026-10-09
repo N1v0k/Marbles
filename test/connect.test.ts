@@ -258,6 +258,29 @@ describe('Branch end, backing up, straight runs', () => {
       expect(L.freePorts.some((q) => q.idx === 2 && q.port === 3), s.text).toBe(false);   // docked into the lane
     }
   });
+  it('a run change that moves the target is checked against the target where it ends up (here: the crossing moves too)', () => {
+    const els = decodeChain(SPIRAL)!.elements;
+    els[5] = { part: 'Rutsche120_100-60_16mm' };
+    els[1].part = 'Gerade60_60-50_16mm'; els[11].part = 'Gerade60_60-50_16mm'; els[12].part = 'Gerade60_50-50_16mm';
+    els.splice(6, 1, { part: 'Gerade60_60-50_16mm' }, { part: 'Gerade60_50-40_16mm' });
+    els.splice(2, 0, { part: 'Kurve90_50_16mm' });
+    const L = solveChain(els);
+    expect(L.issues.filter((i) => i.level === 'error')).toEqual([]);
+    const f = L.freePorts.find((q) => q.idx === 3 && q.port === 3)!;
+    const r = findRunAdjustments(els, { kind: 'port', p: f.w.p, n: f.w.n, rimCode: 50 });
+    expect(r.length).toBeGreaterThan(0);
+    for (const s of r) {
+      const out = applyConnection(els, s);
+      expect(solveChain(out).freePorts.some((q) => out[q.idx] === els[3] && q.port === 3), s.text).toBe(false);   // lane taken
+    }
+  });
+  it('a run change must deliver the rim the target needs', () => {
+    // Y merge at the end delivers rim 40; with a rim-50 entrance, re-filling a flat straight cannot help
+    const els = decodeChain(TRACK)!.elements;
+    els[0].part = 'Gerade60_50-40_16mm'; els[13].part = 'Gerade60_40-40_16mm';
+    const e = solveChain(els).placed[0].entry!;
+    expect(findRunAdjustments(els, { kind: 'port', p: e.p, n: e.n, rimCode: 50 }, { strand: 1 })).toEqual([]);
+  });
   it('a loop is only closed by the main strand', () => {
     expect(findConnections(decodeChain(TRACK)!.elements, { kind: 'ring' }, { strand: 1 })).toEqual([]);
   });

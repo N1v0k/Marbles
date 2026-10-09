@@ -11,7 +11,7 @@
 // Every sequence found is then verified with solveChain: position/direction/rim or loop, and no new errors (collisions
 // with parts and adapter towers, joints, missing adapters).
 import { catalog, entryExit, requiredFeedRim, LEVEL, SCALE, type Part } from './catalog';
-import { apply, rotM, solveChain, type ChainElement, type Layout } from './chain';
+import { apply, rotM, solveChain, portW, type ChainElement, type Layout, type PortW } from './chain';
 import { t, tf, partName } from './i18n';
 import { offGrid, GRID } from './grid';
 
@@ -176,6 +176,28 @@ function resolveTarget(L: Layout, target: ConnectTarget): { p: [number, number, 
   return { p: [...target.p], n: [target.n[0], target.n[1]], rim: target.rimCode ?? null };
 }
 
+/** Which socket of which element a port target is (a free lane, the entry of part 1 ...), so it can be found again after
+ *  the chain changed - parts before it may move it. null for a target that is no socket of the chain. */
+interface TargetRef { el: ChainElement; port: number; free: boolean }
+function targetRef(elements: ChainElement[], L: Layout, target: ConnectTarget): TargetRef | null {
+  if (target.kind !== 'port') return null;
+  for (const q of L.placed) {
+    if (!q.connected) continue;
+    for (let i = 0; i < q.part.ports.length; i++) {
+      const w = portW(q.part.ports[i], q.R, q.t, q.S);
+      if (Math.max(Math.abs(w.p[0] - target.p[0]), Math.abs(w.p[1] - target.p[1]), Math.abs(w.p[2] - target.p[2])) <= TOL
+          && w.n[0] * target.n[0] + w.n[1] * target.n[1] > 0.99)
+        return { el: elements[q.idx], port: i, free: L.freePorts.some((f) => f.idx === q.idx && f.port === i) };
+    }
+  }
+  return null;
+}
+/** That socket in another layout of the (changed) chain; null if its element is gone. */
+function resolveRef(ref: TargetRef, elements: ChainElement[], L: Layout): PortW | null {
+  const q = L.placed[elements.indexOf(ref.el)];
+  return q?.connected ? portW(q.part.ports[ref.port], q.R, q.t, q.S) : null;
+}
+
 // ---------------------------------------------------------------- Search
 /** Search state: position in grid units (forward from the open end, backward from the target), heading, level
  *  (relative to the open end), rim (-1 = any). prev/m: the path that led here. */
@@ -240,9 +262,11 @@ export function findConnections(elements: ChainElement[], target: ConnectTarget,
   const L = solveChain(elements);
   if (target.kind === 'ring' && L.ring) return [];                        // already closed
   const tg = resolveTarget(L, target); if (!tg) return [];
+  const ref = targetRef(elements, L, target);
   const out: ConnectSuggestion[] = [];
   for (let drop = 0; drop <= maxDrop && Date.now() < deadline; drop++) {
     const els = trimStrand(elements, strand, drop); if (!els) break;
+    if (ref && !els.includes(ref.el)) break;                              // never remove the target part itself
     // later drops share the remaining time; each gets at least its fair part
     const share = (deadline - Date.now()) / (maxDrop - drop + 1);
     out.push(...searchFrom(els, target, tg, L.placed[0]?.S ?? 0, strand, drop, { ...opts, timeMs: share }));
@@ -512,6 +536,8 @@ export function findRunAdjustments(elements: ChainElement[], target: ConnectTarg
   if (e.n[0] * tg.n[0] + e.n[1] * tg.n[1] > -0.99 || Math.abs(tg.p[2] - e.p[2]) > TOL) return [];   // must already face the target
   const d: [number, number] = [tg.p[0] - e.p[0], tg.p[1] - e.p[1]];
   if (Math.hypot(d[0], d[1]) < TOL) return [];
+  const ref = targetRef(elements, L0, target);
+  if (target.kind === 'port' && !ref) return [];                          // only targets that can be found again
   const runs = strandRuns(elements, L0, strand);
   const baseErr = L0.issues.filter((i) => i.level === 'error').length;
   // plans: (run, delta in units) - one run along d, or two perpendicular runs spanning it
@@ -553,9 +579,7 @@ export function findRunAdjustments(elements: ChainElement[], target: ConnectTarg
       const els = applyEdits(elements, edits);
       const L = solveChain(els);
       if (L.issues.filter((i) => i.level === 'error').length > baseErr) continue;
-      const s2 = L.strands[strand], q = s2 && L.placed[s2.idxs[s2.idxs.length - 1]];
-      // the part's own exit (out moves on to the far end of a lane it docks into)
-      if (target.kind === 'ring' ? !L.ring : !q?.exit || Math.hypot(q.exit.p[0] - tg.p[0], q.exit.p[1] - tg.p[1]) > TOL) continue;
+      if (!arrives(els, L, strand, target, ref, tg.rim)) continue;
       const added = edits.flatMap((x) => x.parts), removed = plan.reduce((n, p) => n + p.run.count, 0);
       const text = plan.map(({ run }, i) => `${run.old.map(shortMove).join(' + ')} → ${combo[i].map((m) => labelOf(m.part, m.turn)).join(' + ')}`).join('; ');
       result.push({ elements: added, n: added.length, err: 0, levels: 0, text, strand, drop: removed, edits });
@@ -563,5 +587,18 @@ export function findRunAdjustments(elements: ChainElement[], target: ConnectTarg
     }
   }
   return result.sort((a, b) => a.n + a.drop - (b.n + b.drop)).slice(0, maxOut);
+}
+/** After a change: does the strand end where the target socket now is (parts before it may have moved it) - the part's
+ *  own exit (out moves on to the far end of a lane it docks into) at the socket's position and height, facing into it,
+ *  with the required rim; a free lane must be taken. A loop: L.ring. */
+function arrives(els: ChainElement[], L: Layout, strand: number, target: ConnectTarget, ref: TargetRef | null, rim: number | null): boolean {
+  if (target.kind === 'ring') return L.ring;
+  const st = L.strands[strand], q = st && st.idxs.length ? L.placed[st.idxs[st.idxs.length - 1]] : null;
+  const w = ref && resolveRef(ref, els, L);
+  if (!q?.connected || !q.exit || !w) return false;
+  if (Math.max(Math.abs(q.exit.p[0] - w.p[0]), Math.abs(q.exit.p[1] - w.p[1]), Math.abs(q.exit.p[2] - w.p[2])) > TOL) return false;
+  if (q.exit.n[0] * w.n[0] + q.exit.n[1] * w.n[1] > -0.99) return false;
+  if (rim != null && rim >= 0 && q.rimOutEff != null && q.rimOutEff !== rim) return false;
+  return !ref!.free || !L.freePorts.some((f) => els[f.idx] === ref!.el && f.port === ref!.port);
 }
 function shortMove(s: string): string { const m = runMoves().find((x) => x.part + (x.reversed ? '*' : '') === s); return m ? labelOf(m.part, m.turn) : s; }
