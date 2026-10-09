@@ -674,7 +674,16 @@ function connectTargets(strand = connectStrand() ?? 0): ConnectGoal[] {
   if (!end || !end.connected || !end.out) return out;
   const zEnd = end.out.p[2] + 0.5;
   const first = layout.placed[0];
-  if (!layout.ring && endI > 0 && first?.connected && first.entry) {
+  // the entrance must still be free: not the closed loop, and no strand already running into it - if it is this strand,
+  // its end is not open at all (nothing to connect; backing up would tear the connection out)
+  const fe = first?.entry;
+  const intoEntry = (k: number) => {
+    const st = layout.strands[k], q = st?.idxs.length ? layout.placed[st.idxs[st.idxs.length - 1]] : null;
+    return !!fe && !!q?.exit && Math.hypot(q.exit.p[0] - fe.p[0], q.exit.p[1] - fe.p[1], q.exit.p[2] - fe.p[2]) < 0.4 && q.exit.n[0] * fe.n[0] + q.exit.n[1] * fe.n[1] < -0.99;
+  };
+  if (strand > 0 && intoEntry(strand)) return out;
+  const entryTaken = layout.strands.some((_, k) => intoEntry(k));
+  if (!layout.ring && !entryTaken && endI > 0 && first?.connected && first.entry) {
     const name = shortName(first.part);
     out.push(strand === 0 ? { key: 'ring', label: tf('connectRing', { name }), targets: [{ t: { kind: 'ring' } }] }
       : { key: 'entry', label: tf('connectEntry', { name }), targets: [{ t: { kind: 'port', p: first.entry.p, n: first.entry.n, rimCode: requiredFeedRim(first.part, first.reversed) ?? undefined } }] });
@@ -710,6 +719,8 @@ function tailName(e: ChainElement): string { const p = catalog.byId.get(e.part);
 /** Results of one goal: validated suggestions with their solved layout (for the preview), at most CONNECT_SHOW, one per
  *  route shape; none = no route (the dialog then explains why). */
 interface ConnectFound { s: ConnectSuggestion; tail?: ChainElement; work: ChainElement[]; L2: Layout; cost: number; added: number }
+/** Goals whose search stopped at its time limit without a result ("not found", not "no route"). */
+const connectTimedOut = new Set<ConnectGoal>();
 const CONNECT_SHOW = 3;
 /** Route shape: the turns and level drops of the new parts (straights and curve radii left out), for re-fills which
  *  runs change. Suggestions of the same shape are the same idea; only the shortest is shown. */
@@ -728,6 +739,7 @@ async function searchGoal(g: ConnectGoal, run: number, timeMs: number): Promise<
   const errs0 = layout.issues.filter((i) => i.level === 'error').length;
   const found: ConnectFound[] = [];
   const maxParts = g.key === 'ring' ? 10 : 8;
+  let timedOut = false;
   const strand = connectStrand() ?? 0;
   for (const tg of g.targets) {
     await new Promise((r) => setTimeout(r, 0));
@@ -736,8 +748,10 @@ async function searchGoal(g: ConnectGoal, run: number, timeMs: number): Promise<
     // starting one or two parts earlier
     const runs = tg.tail ? [] : findRunAdjustments(state.elements, tg.t, { strand });
     const cheapest = Math.min(...runs.map((x) => x.n + x.drop), ...found.map((x) => x.cost));      // known so far
-    const sug = [...runs, ...findConnections(state.elements, tg.t, { maxParts, max: 6, strand, maxDrop: 2, slack: 2,
+    const stats = { timedOut: false };
+    const sug = [...runs, ...findConnections(state.elements, tg.t, { maxParts, max: 6, strand, maxDrop: 2, slack: 2, stats,
       maxCost: Number.isFinite(cheapest) ? cheapest + 2 : undefined, timeMs: timeMs / g.targets.length })];
+    if (stats.timedOut) timedOut = true;
     for (const s of sug) {
       const work = connectWork(s, tg.tail), L2 = solveChain(work);
       if (tg.tail) {
@@ -749,6 +763,7 @@ async function searchGoal(g: ConnectGoal, run: number, timeMs: number): Promise<
       found.push({ s, tail: tg.tail, work, L2, cost: s.n + s.drop + (tg.tail ? 1 : 0), added: L2.length - layout.length });
     }
   }
+  if (timedOut && !found.length) connectTimedOut.add(g); else connectTimedOut.delete(g);
   // fewest parts changed, then the shorter route; at equal cost keep the track as it is (no removal) before re-filling
   found.sort((x, y) => x.cost - y.cost || x.added - y.added || +!!x.s.edits - +!!y.s.edits || x.s.drop - y.s.drop || x.s.err - y.s.err);
   const shapes = new Set<string>();
@@ -775,7 +790,20 @@ async function openConnect() {
     if (!r) { res.innerHTML = `<p class="small muted">${t('connectSearching')}</p>`; return; }
     renderConnect(goals[i], r);
   };
-  box.querySelectorAll<HTMLButtonElement>('button[data-goal]').forEach((b) => b.addEventListener('click', () => { picked = true; show(Number(b.dataset.goal)); }));
+  box.querySelectorAll<HTMLButtonElement>('button[data-goal]').forEach((b) => b.addEventListener('click', async () => {
+    picked = true;
+    const i = Number(b.dataset.goal);
+    show(i);
+    if (results[i] && !results[i]!.length && connectTimedOut.has(goals[i]) && run === connectRun) {   // search again, longer
+      results[i] = undefined; show(i);
+      const r = await searchGoal(goals[i], run, 6000);
+      if (r == null || run !== connectRun) return;
+      results[i] = r;
+      const badge = b.querySelector('.connect-badge');
+      if (badge) badge.textContent = r.length ? tf('connectChanged', { n: r[0].cost }) : t(connectTimedOut.has(goals[i]) ? 'connectNoRouteTime' : 'connectNoRoute');
+      if (shown === i) show(i);
+    }
+  }));
   if (!dlg.open) dlg.showModal();
   dlg.addEventListener('close', () => { if (run === connectRun) connectRun++; }, { once: true });   // stop searching
   if (!goals.length) return;
@@ -788,7 +816,8 @@ async function openConnect() {
     if (r == null || run !== connectRun) return;
     results[i] = r;
     const badge = box.querySelector(`button[data-goal="${i}"] .connect-badge`);
-    if (badge) badge.textContent = r.length ? tf('connectChanged', { n: r[0].cost }) : t('connectNoRoute');   // added + removed, as ranked
+    if (badge) badge.textContent = r.length ? tf('connectChanged', { n: r[0].cost })                          // added + removed, as ranked
+      : t(connectTimedOut.has(goals[i]) ? 'connectNoRouteTime' : 'connectNoRoute');
     const order = goals.map((_, k) => k).sort((a, b) => best(a) - best(b) || a - b);
     for (const k of order) { const b = box.querySelector(`button[data-goal="${k}"]`); if (b) box.appendChild(b); }
     // show the best so far as soon as there is one (it usually is the part the user is heading for), unless picked
@@ -812,7 +841,11 @@ function noConnectionText(g: ConnectGoal, strand: number, maxParts: number): str
 /** Results of a goal: up to CONNECT_SHOW suggestions with their top view, or the explanation. */
 function renderConnect(g: ConnectGoal, top: ConnectFound[]) {
   const res = $('#connect-results');
-  if (!top.length) { res.innerHTML = `<p class="small">${esc(noConnectionText(g, connectStrand() ?? 0, g.key === 'ring' ? 10 : 8))}</p>`; return; }
+  const maxParts = g.key === 'ring' ? 10 : 8;
+  if (!top.length) {
+    res.innerHTML = `<p class="small">${esc(connectTimedOut.has(g) ? tf('connectTimeout', { n: maxParts }) : noConnectionText(g, connectStrand() ?? 0, maxParts))}</p>`;
+    return;
+  }
   const head = (f: ConnectFound) => f.s.edits ? t('connectRun')
     : f.s.drop ? tf('connectPartsDrop', { n: f.s.n + (f.tail ? 1 : 0), k: f.s.drop }) : tf('connectParts', { n: f.s.n + (f.tail ? 1 : 0) });
   // top view of each suggestion: what stays, what is new, what goes, where the end connects
@@ -823,7 +856,9 @@ function renderConnect(g: ConnectGoal, top: ConnectFound[]) {
   };
   res.innerHTML = top.map((f, i) => `<div class="connect-row">${preview(f)}<div><b>${esc(head(f))}</b> <span class="small">${esc(f.s.text)}${f.tail ? ' + ' + esc(tailName(f.tail)) : ''}</span></div>` +
     `<button type="button" class="small-btn primary" data-apply="${i}">${t('connectApply')}</button></div>`).join('');
-  res.querySelectorAll<HTMLButtonElement>('button[data-apply]').forEach((b) => b.addEventListener('click', () => {
+  const drawnAt = performance.now();
+  res.querySelectorAll<HTMLButtonElement>('button[data-apply]').forEach((b) => b.addEventListener('click', (ev) => {
+    if (ev.timeStamp < drawnAt) return;          // clicked before this list was drawn (queued during a search): not this one
     const f = top[Number(b.dataset.apply)];
     const prevEl = snapshot();
     const work = f.work;
@@ -832,7 +867,8 @@ function renderConnect(g: ConnectGoal, top: ConnectFound[]) {
     ($('#dlg-connect') as HTMLDialogElement).close();
     commitElements(work, { select: last ?? null, insertAnchor: null, replaceTarget: null }, prevEl);
     const stops = steps.some((st) => st.status === 'stop');
-    toast((f.tail ? tf('connectDoneTunnel', { n: f.s.n, tunnel: tailName(f.tail) }) : f.s.edits ? tf('connectDoneRun', { n: f.s.drop }) : tf('connectDone', { n: f.s.n })) + (stops ? ' ' + t('connectStops') : ''), 6000);
+    toast((f.tail ? tf('connectDoneTunnel', { n: f.s.n, tunnel: tailName(f.tail) }) : f.s.edits ? tf('connectDoneRun', { n: f.s.n, k: f.s.drop })
+      : f.s.drop ? tf('connectDoneDrop', { n: f.s.n, k: f.s.drop }) : tf('connectDone', { n: f.s.n })) + (stops ? ' ' + t('connectStops') : ''), 6000);
   }));
 }
 

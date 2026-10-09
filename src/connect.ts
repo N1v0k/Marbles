@@ -38,7 +38,10 @@ export interface ConnectOptions { maxParts?: number; max?: number; timeMs?: numb
   /** stop once routes would need more than this many parts beyond the shortest one found (saves time) */
   slack?: number;
   /** only routes with at most this many parts changed (added + removed), e.g. when a cheaper fix is already known */
-  maxCost?: number }
+  maxCost?: number;
+  /** filled in: timedOut = the search stopped at its time or size limit before trying every route length - an empty
+   *  result then does not prove that there is no route */
+  stats?: { timedOut: boolean } }
 
 /** A candidate in one mounting orientation and what it does to the open end (relative to the running direction at the entry). */
 export interface ConnectMove {
@@ -202,6 +205,21 @@ function resolveRef(ref: TargetRef, elements: ChainElement[], L: Layout): PortW 
   return q?.connected ? portW(q.part.ports[ref.port], q.R, q.t, q.S) : null;
 }
 
+/** The other strands are untouched by a change: each still ends the same way - docked into the same free lane or inlet
+ *  of the same part, or open - and is fed from the same part. (Moving or removing parts can cut a branch off the Y merge
+ *  or crossing it ran into without any solver error.) */
+function strandsIntact(elsA: ChainElement[], LA: Layout, elsB: ChainElement[], LB: Layout, strand: number): boolean {
+  for (const st of LA.strands) {
+    if (st.id === strand || !st.idxs.length) continue;
+    const qa = LA.placed[st.idxs[st.idxs.length - 1]], j = elsB.indexOf(elsA[qa.idx]), qb = j >= 0 ? LB.placed[j] : null;
+    if (!qb || qb.connected !== qa.connected || (qa.out == null) !== (qb.out == null)) return false;
+    if (!!qa.dock !== !!qb.dock || (qa.dock && (elsA[qa.dock.idx] !== elsB[qb.dock!.idx] || qa.dock.port !== qb.dock!.port))) return false;
+    const fa = st.fed, fb = LB.strands[qb.strand]?.fed ?? null;
+    if ((fa == null) !== (fb == null) || (fa != null && elsA[fa] !== elsB[fb!])) return false;
+  }
+  return true;
+}
+
 // ---------------------------------------------------------------- Search
 /** Search state: position in grid units (forward from the open end, backward from the target), heading, level
  *  (relative to the open end), rim (-1 = any). prev/m: the path that led here. */
@@ -269,7 +287,8 @@ export function findConnections(elements: ChainElement[], target: ConnectTarget,
   const ref = targetRef(elements, L, target);
   const out: ConnectSuggestion[] = [];
   let maxCost = opts.maxCost ?? Infinity;
-  for (let drop = 0; drop <= maxDrop && Date.now() < deadline; drop++) {
+  for (let drop = 0; drop <= maxDrop; drop++) {
+    if (Date.now() >= deadline) { if (opts.stats) opts.stats.timedOut = true; break; }
     const maxParts = Math.min(opts.maxParts ?? 8, maxCost - drop);
     if (maxParts < 1) break;
     const els = trimStrand(elements, strand, drop); if (!els) break;
@@ -278,7 +297,7 @@ export function findConnections(elements: ChainElement[], target: ConnectTarget,
     const share = (deadline - Date.now()) / (maxDrop - drop + 1);
     // starting with the part that was just removed is the same route as one drop fewer
     const first = elements[strandEnd(elements, strand) - drop + 1];
-    const found = searchFrom(els, target, tg, L.placed[0]?.S ?? 0, strand, drop, { ...opts, maxParts, timeMs: share })
+    const found = searchFrom(els, target, tg, { elements, L }, strand, drop, { ...opts, maxParts, timeMs: share })
       .filter((s) => !drop || s.elements[0].part !== first.part || !!s.elements[0].reversed !== !!first.reversed);
     out.push(...found);
     // with slack: later drops only for routes about as cheap as the best so far
@@ -288,10 +307,11 @@ export function findConnections(elements: ChainElement[], target: ConnectTarget,
   return out.sort((a, b) => changed(a) - changed(b) || a.drop - b.drop || a.n - b.n).slice(0, maxOut);
 }
 
-/** One search from the open end of `strand` in `elements` (already trimmed by `drop`). tg was resolved on the full chain,
- *  whose first part stands at height S0full. */
-function searchFrom(elements: ChainElement[], target: ConnectTarget, tgFull: NonNullable<ReturnType<typeof resolveTarget>>, S0full: number,
-                    strand: number, drop: number, opts: ConnectOptions): ConnectSuggestion[] {
+/** One search from the open end of `strand` in `elements` (already trimmed by `drop`). tg was resolved on the full chain
+ *  `full`, which is also the baseline for errors and for the other strands. */
+function searchFrom(elements: ChainElement[], target: ConnectTarget, tgFull: NonNullable<ReturnType<typeof resolveTarget>>,
+                    full: { elements: ChainElement[]; L: Layout }, strand: number, drop: number, opts: ConnectOptions): ConnectSuggestion[] {
+  const S0full = full.L.placed[0]?.S ?? 0;
   const maxParts = Math.max(1, Math.min(10, opts.maxParts ?? 8));
   const maxOut = Math.max(1, opts.max ?? 5);
   const t0 = Date.now(), deadline = t0 + (opts.timeMs ?? 2500);
@@ -376,8 +396,8 @@ function searchFrom(elements: ChainElement[], target: ConnectTarget, tgFull: Non
     return (bwdHash[b] = H);
   };
 
-  // verify: append, solve, check target/loop and error count
-  const baseErr = L0.issues.filter((i) => i.level === 'error').length;
+  // verify: append, solve, check target/loop, errors (against the full chain: dropping must not add any) and the other strands
+  const baseErr = full.L.issues.filter((i) => i.level === 'error').length;
   const S0 = L0.placed[0].S;
   const first = endIdx + 1;
   let verified = 0;
@@ -387,6 +407,7 @@ function searchFrom(elements: ChainElement[], target: ConnectTarget, tgFull: Non
     const L = solveChain(els);
     const errs = L.issues.filter((i) => i.level === 'error');
     if (errs.length > baseErr || errs.some((i) => i.idx.some((k) => k >= first && k < first + add.length))) return false;
+    if (!strandsIntact(full.elements, full.L, els, L, strand)) return false;
     const q = L.placed[first + add.length - 1];
     if (!q || !q.connected || !q.exit) return false;
     if (target.kind === 'ring') return L.ring;
@@ -404,7 +425,7 @@ function searchFrom(elements: ChainElement[], target: ConnectTarget, tgFull: Non
     const a = Math.ceil(N / 2), b = N - a;
     while (fwd.length <= a && expandF(fwd.length - 1));
     while (bwd.length <= b && expandB(bwd.length - 1));
-    if (fwd.length <= a || bwd.length <= b) break;                         // time or memory exhausted
+    if (fwd.length <= a || bwd.length <= b) { if (opts.stats) opts.stats.timedOut = true; break; }   // time or memory exhausted
     const H = hashOf(b);
     // matches of the two halves, grouped by geometry
     const groups = new Map<string, Cand[]>();
@@ -446,6 +467,7 @@ function searchFrom(elements: ChainElement[], target: ConnectTarget, tgFull: Non
       }
     }
   }
+  if (opts.stats && result.length < maxOut && (timeUp() || verified >= VERIFY_MAX)) opts.stats.timedOut = true;
   return result;
 }
 
@@ -460,20 +482,35 @@ export function connectGap(elements: ChainElement[], target: ConnectTarget, stra
   const u = end.out.n, d = [tg.p[0] - end.out.p[0], tg.p[1] - end.out.p[1]];
   const along = d[0] * u[0] + d[1] * u[1], side = -d[0] * u[1] + d[1] * u[0];
   const third = (v: number) => { const k = v / (GRID / 3); return Math.abs(k - Math.round(k)) * (GRID / 3) <= TOL; };
-  return { along, side, onGrid: third(along) && third(side), offGrid: L.placed.filter((q) => q.connected && offGrid(q.part)).map((q) => q.idx) };
+  const dz = tg.p[2] - end.out.p[2], level = Math.abs(dz - Math.round(dz / LEVEL) * LEVEL) <= TOL;
+  // only parts between the end and the target shift one against the other: the parts on the path from the first part to
+  // the end or to the target part, but not on both (common parts move both alike)
+  const pathTo = (i: number): number[] => {
+    const q = L.placed[i], s2 = q ? L.strands[q.strand] : null; if (!s2) return [];
+    const own = s2.idxs.slice(0, s2.idxs.indexOf(i) + 1);
+    return s2.from ? [...pathTo(s2.from.idx), ...own] : own;
+  };
+  const ref = targetRef(elements, L, target), ti = target.kind === 'ring' ? 0 : ref ? elements.indexOf(ref.el) : -1;
+  const pe = new Set(pathTo(end.idx)), pt = new Set(ti >= 0 ? pathTo(ti) : []);
+  // the target part itself shifts the target only if the target is not its entry (e.g. a lane further along it)
+  const tq = ti >= 0 ? L.placed[ti] : null, atEntry = !!tq?.entry && Math.hypot(tq.entry.p[0] - tg.p[0], tq.entry.p[1] - tg.p[1]) <= TOL;
+  const between = ti >= 0 ? [...pe, ...pt].filter((i) => (i === ti ? !atEntry : !(pe.has(i) && pt.has(i)))) : [...pe];
+  return { along, side, onGrid: third(along) && third(side) && level,
+           offGrid: [...new Set(between)].sort((a, b) => a - b).filter((i) => L.placed[i]?.connected && offGrid(L.placed[i].part)) };
 }
 
 // ---------------------------------------------------------------- Re-fill straight runs
 /** Replaces element ranges (the first part of a range keeps its branch anchor; anchors pointing at replaced parts move to
- *  the new part at the same position, or the last one). */
+ *  the new part at the same position, or the last one). Parts given as the existing element objects stay as they are. */
 export function applyEdits(elements: ChainElement[], edits: RunEdit[]): ChainElement[] {
   let out = elements.slice();
   for (const e of [...edits].sort((a, b) => b.at - a.at)) {
     const old = out.slice(e.at, e.at + e.count);
-    const parts = e.parts.map((p, i) => ({ ...p, ...(i === 0 && old[0]?.branch ? { branch: old[0].branch } : {}) }));
+    // parts that stay (the same element object) keep all their settings; a new first part takes over the anchor
+    const parts = e.parts.map((p, i) => (i === 0 && old[0]?.branch && p !== old[0] ? { ...p, branch: old[0].branch } : p));
     out.splice(e.at, e.count, ...parts);
     out = out.map((x) => {
-      const k = x.branch ? old.indexOf(x.branch.from) : -1;
+      const k = x.branch && !parts.includes(x.branch.from) ? old.indexOf(x.branch.from) : -1;
       return k < 0 ? x : { ...x, branch: { ...x.branch!, from: parts[Math.min(k, parts.length - 1)] } };
     });
   }
@@ -588,13 +625,18 @@ export function findRunAdjustments(elements: ChainElement[], target: ConnectTarg
     // try the best few combinations of fills
     const combos: Move[][][] = fills.length === 1 ? fills[0].map((f) => [f]) : fills[0].flatMap((f0) => fills[1].map((f1) => [f0, f1]));
     for (const combo of combos) {
-      const edits: RunEdit[] = plan.map(({ run }, i) => ({ at: run.at, count: run.count,
-        parts: combo[i].map((m) => (m.reversed ? { part: m.part, reversed: true } : { part: m.part })) }));
+      // a part that stays at its place in the run is the existing element (keeps its settings, is not counted)
+      const edits: RunEdit[] = plan.map(({ run }, i) => {
+        const old = elements.slice(run.at, run.at + run.count);
+        return { at: run.at, count: run.count, parts: combo[i].map((m, k) => old[k] && old[k].part === m.part && !!old[k].reversed === m.reversed ? old[k]
+          : (m.reversed ? { part: m.part, reversed: true } : { part: m.part })) };
+      });
       const els = applyEdits(elements, edits);
       const L = solveChain(els);
       if (L.issues.filter((i) => i.level === 'error').length > baseErr) continue;
-      if (!arrives(els, L, strand, target, ref, tg.rim)) continue;
-      const added = edits.flatMap((x) => x.parts), removed = plan.reduce((n, p) => n + p.run.count, 0);
+      if (!arrives(els, L, strand, target, ref, tg.rim) || !strandsIntact(elements, L0, els, L, strand)) continue;
+      const kept = new Set(elements), added = edits.flatMap((x) => x.parts).filter((p) => !kept.has(p));
+      const removed = plan.reduce((n, p) => n + p.run.count, 0) - (edits.flatMap((x) => x.parts).length - added.length);
       const text = plan.map(({ run }, i) => `${run.old.map(shortMove).join(' + ')} → ${combo[i].map((m) => labelOf(m.part, m.turn)).join(' + ')}`).join('; ');
       result.push({ elements: added, n: added.length, err: 0, levels: 0, text, strand, drop: removed, edits });
       break;

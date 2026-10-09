@@ -6,6 +6,7 @@ import { findConnections, findRunAdjustments, connectGap, connectCandidates, app
 import { solveChain, type ChainElement } from '../src/chain';
 import { catalog, SCALE } from '../src/catalog';
 import { chain, demo, ids } from './helpers';
+import { applyEdits } from '../src/connect';
 import { setLang } from '../src/i18n';
 import { decodeChain } from '../src/state';
 
@@ -250,8 +251,10 @@ describe('Branch end, backing up, straight runs', () => {
     expect(connectGap(els, t)!.along).toBeCloseTo(14.933, 2);                    // still off: Gerade88 is 2 units short
     const r = findRunAdjustments(els, t);
     expect(r.length).toBeGreaterThanOrEqual(1);
-    expect(r[0].edits!.map((e) => [e.at, e.count])).toEqual([[6, 1], [11, 2]]);
-    expect(r[0].edits![0].parts.map((p) => p.part)).toEqual(['Gerade60_60-50_16mm', 'Gerade60_50-40_16mm']);   // 64 instead of 46.9
+    expect(r.every((s) => JSON.stringify(s.edits!.map((e) => [e.at, e.count])) === '[[6,1],[11,2]]')).toBe(true);
+    // fixes that keep a part of the old run rank first: fewer parts changed than replacing both runs (2 + 2 -> 2 + 2 is 7)
+    expect(r.every((s) => s.n + s.drop <= 6)).toBe(true);
+    expect(r[0].edits![1].parts.map((p) => p.part)).toContain('Gerade80_50-50_16mm');                  // kept from the old run
     for (const s of r) {
       const L = solveChain(applyConnection(els, s));
       expect(L.issues.filter((i) => i.level === 'error'), s.text).toEqual([]);
@@ -292,6 +295,36 @@ describe('Branch end, backing up, straight runs', () => {
     expect(capped.every((s) => s.n + s.drop <= best)).toBe(true);
     const slack = find('slack', els, { kind: 'ring' }, { maxParts: 10, maxDrop: 1, max: 8, slack: 0 });
     expect(slack.every((s) => s.n + s.drop === best)).toBe(true);
+  });
+  it('no suggestion cuts another strand off what it runs into (review: run change moved the Y merge of a branch)', () => {
+    const els = trimStrand(demo('loop-funnel-flipflop'), 0, 1)!;
+    const L = solveChain(els), branchEnd0 = L.placed[L.strands[1].idxs.at(-1)!];
+    expect(branchEnd0.out).toBeNull();                                            // the flip-flop branch ends in the Y merge
+    for (const s of [...findRunAdjustments(els, { kind: 'ring' }), ...findConnections(els, { kind: 'ring' }, { maxParts: 8, maxDrop: 1, max: 6 })]) {
+      const out = applyConnection(els, s), L2 = solveChain(out), st = L2.strands[1];
+      expect(L2.placed[st.idxs.at(-1)!].out, s.text).toBeNull();                  // still docked
+    }
+  });
+  it('connectGap blames only off-grid parts between the end and the target', () => {
+    const els = decodeChain(TRACK)!.elements;
+    const g = connectGap(els, entryOf(els), 1)!;
+    expect(g.offGrid).not.toContain(0);                                           // the target part (entry = its origin)
+    expect(g.offGrid.map((i) => ids(els)[i])).toEqual(['Spirale_100-60', 'Distanz46-0_40-40']);
+  });
+  it('applyEdits keeps a part that stays (same element: settings like omit survive)', () => {
+    const els = chain('StartSchale_60', 'Gerade120_60-50', 'Gerade120_50-40', 'EndSchale_40');
+    els[1].omit = [0];
+    const out = applyEdits(els, [{ at: 1, count: 2, parts: [els[1], { part: 'Gerade60_50-40_16mm' }] }]);
+    expect(out[1]).toBe(els[1]); expect(out[1].omit).toEqual([0]);
+    expect(ids(out)).toEqual(['StartSchale_60', 'Gerade120_60-50', 'Gerade60_50-40', 'EndSchale_40']);
+  });
+  it('stats.timedOut: an empty result after the time limit is not "no route"', () => {
+    const els = decodeChain(SPIRAL)!.elements, stats = { timedOut: false };
+    findConnections(els, laneOf(els), { maxParts: 8, maxDrop: 2, timeMs: 1, stats });
+    expect(stats.timedOut).toBe(true);
+    const done = { timedOut: false };
+    findConnections(chain('Lift1_Gerade', 'Gerade120_60-60'), { kind: 'ring' }, { maxParts: 10, max: 1, stats: done });
+    expect(done.timedOut).toBe(false);
   });
   it('a loop is only closed by the main strand', () => {
     expect(findConnections(decodeChain(TRACK)!.elements, { kind: 'ring' }, { strand: 1 })).toEqual([]);

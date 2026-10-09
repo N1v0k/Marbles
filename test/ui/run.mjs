@@ -886,6 +886,7 @@ await test('"Connect" re-fills a straight run: the branch ends 7.5 mm short behi
   await page.click('#btn-connect');
   // all goals are searched; the cheapest (here: the entrance of part 1, 2 parts changed) is listed first and shown
   await page.waitForSelector('#connect-results button[data-apply]', { timeout: 20000 });
+  await page.waitForFunction(() => [...document.querySelectorAll('.connect-badge')].every((x) => x.textContent !== '…'), null, { timeout: 30000 });
   const goals = await kb('s.connectGoals');
   eq(Number(await page.getAttribute('#connect-goals button[data-goal]:first-child', 'data-goal')), goals.indexOf('entry'), 'cheapest goal first');
   ok(await page.locator(`#connect-goals button[data-goal="${goals.indexOf('entry')}"]`).evaluate((b) => b.classList.contains('on')), 'and opened');
@@ -896,6 +897,8 @@ await test('"Connect" re-fills a straight run: the branch ends 7.5 mm short behi
   eq(after.length, ids0.length, 'one part replaced, none added');
   eq([after[13], after[14]], ['Gerade60_40-40', 'YMerge120_40-40'], 'Distanz46 -> Gerade60, the Y merge stays');
   eq(await kb("s.layout.issues.filter((i) => i.level === 'error').length"), 0, 'no errors');
+  eq(await kb('s.connectGoals'), [], 'the branch now ends in the entrance: nothing to connect');
+  eq(await page.locator('#btn-connect').count(), 0, 'no Connect button');
   await page.click('#btn-undo'); await page.waitForTimeout(400);
   eq(await ids(), ids0, 'undo reverts the change');
 });
