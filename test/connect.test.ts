@@ -1,12 +1,13 @@
 // Connect assistant: shortest part sequences from the open end of the main strand to a target socket -
 // circuit (lift entry, all four head directions), free socket on the same or a lower level, unreachable targets,
-// part set, insertion before branches, runtime.
+// part set, insertion before branches, open end of a branch, backing up, re-filling a straight run, runtime.
 import { describe, it, expect } from 'vitest';
-import { findConnections, connectCandidates, applyConnection, mainEnd, type ConnectTarget, type ConnectSuggestion, type ConnectOptions } from '../src/connect';
+import { findConnections, findRunAdjustments, connectCandidates, applyConnection, mainEnd, strandEnd, trimStrand, type ConnectTarget, type ConnectSuggestion, type ConnectOptions } from '../src/connect';
 import { solveChain, type ChainElement } from '../src/chain';
 import { catalog, SCALE } from '../src/catalog';
 import { chain, demo, ids } from './helpers';
 import { setLang } from '../src/i18n';
+import { decodeChain } from '../src/state';
 
 const errors = (els: ChainElement[]) => solveChain(els).issues.filter((i) => i.level === 'error');
 const times: Record<string, number> = {};
@@ -178,6 +179,59 @@ describe('Insertion', () => {
     expect(L.strands.map((s) => s.idxs)).toEqual([[0, 1, 2, 3, 4], [5]]);
     expect(endsAt(els, r[0], t)).toBe(true);
     expect(els.length).toBe(4);                                      // input unchanged
+  });
+});
+
+describe('Branch end, backing up, straight runs', () => {
+  // A user's track (lift loop with a crossing): the branch from the crossing should end in the entrance of part 1
+  // (Distanz46). As built, it ends 7.47 mm short - one grid step minus the Distanz46 offset - after a Y merge.
+  const TRACK = 'm1.9.23.x.u.c.2w.g.2h.12@7:2.y*.g.d.s*.9.52';
+  const entryOf = (els: ChainElement[]): Extract<ConnectTarget, { kind: 'port' }> => {
+    const f = solveChain(els).placed[0].entry!; return { kind: 'port', p: f.p, n: f.n };
+  };
+  const branchEnd = (els: ChainElement[]) => { const L = solveChain(els), st = L.strands[1]; return L.placed[st.idxs[st.idxs.length - 1]]; };
+  it('strandEnd / trimStrand: strands in list order; parts another branch starts at are never removed', () => {
+    const els = decodeChain(TRACK)!.elements;
+    expect([strandEnd(els, 0), strandEnd(els, 1), strandEnd(els, 2)]).toEqual([7, 14, -1]);
+    expect(trimStrand(els, 1, 2)!.length).toBe(13);
+    expect(trimStrand(els, 1, 7)).toBeNull();                                     // would empty the branch
+    expect(trimStrand(els, 0, 1)).toBeNull();                                     // the crossing anchors the branch
+    expect(trimStrand(els, 1, 0)).toBe(els);
+  });
+  it('re-filling a straight run: Distanz46 before the Y merge becomes a Gerade60, the branch then ends in the entrance', () => {
+    const els = decodeChain(TRACK)!.elements, t = entryOf(els);
+    const r = findRunAdjustments(els, t, { strand: 1 });
+    expect(r.length).toBe(1);
+    expect(r[0].edits).toEqual([{ at: 13, count: 1, parts: [{ part: 'Gerade60_40-40_16mm' }] }]);
+    expect([r[0].n, r[0].drop]).toEqual([1, 1]);
+    const out = applyConnection(els, r[0]);
+    expect(ids(out).slice(12)).toEqual(['LangeKurve90_R90_40*', 'Gerade60_40-40', 'YMerge120_40-40']);
+    expect(out[8].branch!.from).toBe(out[7]);                                     // anchors survive
+    const q = branchEnd(out);
+    expect(Math.hypot(q.out!.p[0] - t.p[0], q.out!.p[1] - t.p[1])).toBeLessThan(0.05);
+    expect(errors(out)).toEqual([]);
+  });
+  it('re-filling needs a run that points along the gap and a length the straights can make', () => {
+    // 13-part variant: the end is 8 mm short AND 8 mm beside the entrance; the last run would have to be 56 mm (7 steps),
+    // which no straight/spacer combination makes
+    const els = decodeChain('m1.9.23.x.u.2w.g.2h.12@6:2.y*.g.d.l*.c')!.elements;
+    expect(findRunAdjustments(els, entryOf(els), { strand: 1 })).toEqual([]);
+  });
+  it('from the end of a branch, also starting one or two parts earlier (dropped parts are replaced)', () => {
+    const els = decodeChain(TRACK.replace(/\.52$/, ''))!.elements, t = entryOf(els);   // without the Y merge
+    const r = find('branch-drop', els, t, { strand: 1, maxDrop: 2, maxParts: 8 });
+    expect(r.length).toBeGreaterThanOrEqual(1);
+    expect(r.every((s) => s.strand === 1 && s.drop >= 1)).toBe(true);           // nothing fits onto the end itself
+    for (const s of r) {
+      const out = applyConnection(els, s);
+      expect(out.length).toBe(els.length - s.drop + s.n);
+      const q = branchEnd(out);
+      expect(Math.hypot(q.out!.p[0] - t.p[0], q.out!.p[1] - t.p[1]), s.text).toBeLessThan(0.4);
+      expect(errors(out), s.text).toEqual([]);
+    }
+  });
+  it('a loop is only closed by the main strand', () => {
+    expect(findConnections(decodeChain(TRACK)!.elements, { kind: 'ring' }, { strand: 1 })).toEqual([]);
   });
 });
 

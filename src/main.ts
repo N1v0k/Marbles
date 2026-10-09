@@ -11,7 +11,7 @@ const thumb = (p: Part): string | undefined => (isJapandi() ? THUMBS_J[p.id] : u
 import { Viewer, colorFor, type Ghost, type GhostItem, type Marker } from './viewer3d';
 import { t, tf, pick, num, partName, liftName, setLang, getLang, type Lang } from './i18n';
 import { gridInfo, gridRef, nearRing } from './grid';
-import { findConnections, applyConnection, mainEnd, type ConnectTarget, type ConnectSuggestion } from './connect';
+import { findConnections, findRunAdjustments, applyConnection, mainEnd, strandEnd, type ConnectTarget, type ConnectSuggestion } from './connect';
 import { loadState, saveState, History, shareUrl, linkHash, decodeChain, sanitizeElements, sanitizeSim, cloneChain, toPlain, type AppState } from './state';
 import { bom, bomCsv, trackJson, makerworldList, download, exportName } from './export';
 import { tunnelAuto, tunnelLaneTargets, hasTunnelVariant } from './tunnel';
@@ -291,12 +291,8 @@ function renderModeLine() {
   oe.hidden = !lbl;
   if (!lbl) { oe.innerHTML = ''; return; }
   const g = gridLabel();
-  // Connect: only at the end of the main strand (where the route search starts), not in branch/insert mode, and only if
-  // the displayed open end is that end (with branches, append mode shows the end of the last strand). "Continue strand"
-  // on the main strand sets insertAfter to its end, which qualifies.
-  const endMain = mainEnd(state.elements);
-  const atMainEnd = insertAfter == null ? endMain === state.elements.length - 1 : insertAfter === endMain;
-  const canConnect = !branchFrom && atMainEnd && !choice && connectTargets().length > 0;
+  // Connect: from the displayed open end if it is the end of a strand (main strand or branch), not in branch/insert mode
+  const canConnect = connectStrand() != null && connectTargets().length > 0;
   oe.innerHTML = `<div class="oe-row"><span>${esc(lbl)}</span>${canConnect ? `<button id="btn-connect" class="small-btn">${t('btnConnect')}</button>` : ''}</div>` +
     (g ? `<div class="oe-grid" title="${esc(t('gridHelp'))}">${esc(g)}</div>` : '');
   oe.querySelector('#btn-connect')?.addEventListener('click', openConnect);
@@ -658,16 +654,30 @@ function renderMarkers() {
 /** A connect goal: one or more target ports (cross tunnel: one per variant/side); tail = element appended after the
  *  approach (the cross tunnel itself). */
 interface ConnectGoal { key: string; label: string; targets: { t: ConnectTarget; tail?: ChainElement }[]; tunnelOf?: { owner: number; slot: number } }
-/** Goals for the open end of the main strand: closing the loop (first part with an entry), free cross lanes of X-crossings
- *  and lanes under 120/95 adapters that are not higher than the open end (the connecting parts only go downhill). */
-function connectTargets(): ConnectGoal[] {
+/** Strand whose end is the displayed open end (the route search starts there); null in branch/choice mode or when
+ *  inserting in the middle of a strand. Append mode shows the end of the last strand. */
+function connectStrand(): number | null {
+  if (branchFrom || choice) return null;
+  const i = insertAfter ?? state.elements.length - 1;
+  const q = layout.placed[i]; if (!q) return null;
+  const st = layout.strands[q.strand];
+  return st && st.idxs[st.idxs.length - 1] === i ? q.strand : null;
+}
+/** Goals for the open end of the strand: closing the loop (main strand; a branch: into the free entry of the first part),
+ *  free cross lanes of X-crossings and lanes under 120/95 adapters that are not higher than the open end (the connecting
+ *  parts only go downhill). */
+function connectTargets(strand = connectStrand() ?? 0): ConnectGoal[] {
   const out: ConnectGoal[] = [];
   if (!layout.placed.length) return out;
-  const endI = mainEnd(state.elements), end = layout.placed[endI];
+  const endI = strandEnd(state.elements, strand), end = layout.placed[endI];
   if (!end || !end.connected || !end.out) return out;
   const zEnd = end.out.p[2] + 0.5;
   const first = layout.placed[0];
-  if (!layout.ring && endI > 0 && first?.connected && first.entry) out.push({ key: 'ring', label: tf('connectRing', { name: shortName(first.part) }), targets: [{ t: { kind: 'ring' } }] });
+  if (!layout.ring && endI > 0 && first?.connected && first.entry) {
+    const name = shortName(first.part);
+    out.push(strand === 0 ? { key: 'ring', label: tf('connectRing', { name }), targets: [{ t: { kind: 'ring' } }] }
+      : { key: 'entry', label: tf('connectEntry', { name }), targets: [{ t: { kind: 'port', p: first.entry.p, n: first.entry.n, rimCode: requiredFeedRim(first.part, first.reversed) ?? undefined } }] });
+  }
   for (const f of layout.freePorts) {
     if (f.kind !== 'lane' || f.w.p[2] > zEnd) continue;
     const q = layout.placed[f.idx];
@@ -686,8 +696,13 @@ function connectTargets(): ConnectGoal[] {
 /** Insert a suggestion (plus an optional appended tunnel) into the chain. */
 function connectWork(s: ConnectSuggestion, tail?: ChainElement): ChainElement[] {
   const work = applyConnection(state.elements, s);
-  if (tail) work.splice(mainEnd(state.elements) + 1 + s.elements.length, 0, { ...tail });
+  if (tail) work.splice(strandEnd(work, s.strand) + 1, 0, { ...tail });
   return work;
+}
+/** Element to select after applying: the last new part (end of the strand, or the last re-filled run). */
+function connectLast(s: ConnectSuggestion, work: ChainElement[]): ChainElement | undefined {
+  if (s.edits) return [...work].reverse().find((x) => !state.elements.includes(x));
+  return work[strandEnd(work, s.strand)];
 }
 let connectRun = 0;
 function tailName(e: ChainElement): string { const p = catalog.byId.get(e.part); return p ? shortName(p) : e.part; }
@@ -712,37 +727,44 @@ async function runConnect(g: ConnectGoal) {
   const errs0 = layout.issues.filter((i) => i.level === 'error').length;
   const found: { s: ConnectSuggestion; tail?: ChainElement; key: string }[] = [];
   const maxParts = g.key === 'ring' ? 10 : 8;
+  const strand = connectStrand() ?? 0;
   for (const tg of g.targets) {
     await new Promise((r) => setTimeout(r, 0));
     if (run !== connectRun) return;
-    const sug = findConnections(state.elements, tg.t, { maxParts, max: 4, timeMs: g.targets.length > 1 ? 1200 : 2500 });
+    // re-fill an earlier straight run (cheap; not with a tunnel, which is appended), then routes from the end - also
+    // starting one or two parts earlier
+    const sug = [...(tg.tail ? [] : findRunAdjustments(state.elements, tg.t, { strand })),
+                 ...findConnections(state.elements, tg.t, { maxParts, max: 4, strand, maxDrop: 2, timeMs: g.targets.length > 1 ? 1500 : 3000 })];
     for (const s of sug) {
       if (tg.tail) {
         // cross tunnel: must replace the adapter and must not add errors
-        const L2 = solveChain(connectWork(s, tg.tail));
-        const last = L2.placed[mainEnd(state.elements) + 1 + s.elements.length];
+        const work = connectWork(s, tg.tail), L2 = solveChain(work);
+        const last = L2.placed[strandEnd(work, s.strand)];
         if (!last?.connected || L2.adapters.some((x) => x.owner === g.tunnelOf!.owner && x.slot === g.tunnelOf!.slot)) continue;
         if (L2.issues.filter((i) => i.level === 'error').length > errs0) continue;
       }
-      const key = s.elements.map((e) => e.part + (e.reversed ? '*' : '')).join(',') + (tg.tail ? '|' + tg.tail.part + (tg.tail.reversed ? '*' : '') : '');
+      const key = (s.edits ? 'run:' + s.edits.map((e) => e.at).join() + ':' : `d${s.drop}:`) + s.elements.map((e) => e.part + (e.reversed ? '*' : '')).join(',') + (tg.tail ? '|' + tg.tail.part + (tg.tail.reversed ? '*' : '') : '');
       if (!found.some((f) => f.key === key)) found.push({ s, tail: tg.tail, key });
     }
   }
   if (run !== connectRun) return;
-  found.sort((x, y) => x.s.n - y.s.n || x.s.err - y.s.err);
+  // fewest parts changed (added + removed) first; at equal cost keep the track as it is (no removal) before re-filling
+  found.sort((x, y) => x.s.n + x.s.drop - (y.s.n + y.s.drop) || +!!x.s.edits - +!!y.s.edits || x.s.drop - y.s.drop || x.s.err - y.s.err);
   const top = found.slice(0, 5);
   if (!top.length) { res.innerHTML = `<p class="small">${tf('connectNone', { n: maxParts })}</p>`; return; }
-  res.innerHTML = top.map((f, i) => `<div class="connect-row"><div><b>${tf('connectParts', { n: f.s.n + (f.tail ? 1 : 0) })}</b> <span class="small">${esc(f.s.text)}${f.tail ? ' + ' + esc(tailName(f.tail)) : ''}</span></div>` +
+  const head = (f: typeof found[number]) => f.s.edits ? t('connectRun')
+    : f.s.drop ? tf('connectPartsDrop', { n: f.s.n + (f.tail ? 1 : 0), k: f.s.drop }) : tf('connectParts', { n: f.s.n + (f.tail ? 1 : 0) });
+  res.innerHTML = top.map((f, i) => `<div class="connect-row"><div><b>${esc(head(f))}</b> <span class="small">${esc(f.s.text)}${f.tail ? ' + ' + esc(tailName(f.tail)) : ''}</span></div>` +
     `<button type="button" class="small-btn primary" data-apply="${i}">${t('connectApply')}</button></div>`).join('');
   res.querySelectorAll<HTMLButtonElement>('button[data-apply]').forEach((b) => b.addEventListener('click', () => {
     const f = top[Number(b.dataset.apply)];
     const prevEl = snapshot();
     const work = connectWork(f.s, f.tail);
-    const last = work[mainEnd(state.elements) + f.s.elements.length + (f.tail ? 1 : 0)];
+    const last = f.tail ? work[strandEnd(work, f.s.strand)] : connectLast(f.s, work);
     ($('#dlg-connect') as HTMLDialogElement).close();
     commitElements(work, { select: last ?? null, insertAnchor: null, replaceTarget: null }, prevEl);
     const stops = steps.some((st) => st.status === 'stop');
-    toast((f.tail ? tf('connectDoneTunnel', { n: f.s.n, tunnel: tailName(f.tail) }) : tf('connectDone', { n: f.s.n })) + (stops ? ' ' + t('connectStops') : ''), 6000);
+    toast((f.tail ? tf('connectDoneTunnel', { n: f.s.n, tunnel: tailName(f.tail) }) : f.s.edits ? tf('connectDoneRun', { n: f.s.drop }) : tf('connectDone', { n: f.s.n })) + (stops ? ' ' + t('connectStops') : ''), 6000);
   }));
 }
 
