@@ -1,12 +1,14 @@
 // Connect assistant: shortest part sequences from the open end of the main strand to a target socket -
 // circuit (lift entry, all four head directions), free socket on the same or a lower level, unreachable targets,
-// part set, insertion before branches, runtime.
+// part set, insertion before branches, open end of a branch, backing up, re-filling a straight run, runtime.
 import { describe, it, expect } from 'vitest';
-import { findConnections, connectCandidates, applyConnection, mainEnd, type ConnectTarget, type ConnectSuggestion, type ConnectOptions } from '../src/connect';
+import { findConnections, findRunAdjustments, connectGap, connectCandidates, applyConnection, mainEnd, strandEnd, trimStrand, type ConnectTarget, type ConnectSuggestion, type ConnectOptions } from '../src/connect';
 import { solveChain, type ChainElement } from '../src/chain';
 import { catalog, SCALE } from '../src/catalog';
 import { chain, demo, ids } from './helpers';
+import { applyEdits } from '../src/connect';
 import { setLang } from '../src/i18n';
+import { decodeChain } from '../src/state';
 
 const errors = (els: ChainElement[]) => solveChain(els).issues.filter((i) => i.level === 'error');
 const times: Record<string, number> = {};
@@ -178,6 +180,154 @@ describe('Insertion', () => {
     expect(L.strands.map((s) => s.idxs)).toEqual([[0, 1, 2, 3, 4], [5]]);
     expect(endsAt(els, r[0], t)).toBe(true);
     expect(els.length).toBe(4);                                      // input unchanged
+  });
+});
+
+describe('Branch end, backing up, straight runs', () => {
+  // A user's track (lift loop with a crossing): the branch from the crossing should end in the entrance of part 1
+  // (Distanz46). As built, it ends 7.47 mm short - one grid step minus the Distanz46 offset - after a Y merge.
+  const TRACK = 'm1.9.23.x.u.c.2w.g.2h.12@7:2.y*.g.d.s*.9.52';
+  const entryOf = (els: ChainElement[]): Extract<ConnectTarget, { kind: 'port' }> => {
+    const f = solveChain(els).placed[0].entry!; return { kind: 'port', p: f.p, n: f.n };
+  };
+  const branchEnd = (els: ChainElement[]) => { const L = solveChain(els), st = L.strands[1]; return L.placed[st.idxs[st.idxs.length - 1]]; };
+  it('strandEnd / trimStrand: strands in list order; parts another branch starts at are never removed', () => {
+    const els = decodeChain(TRACK)!.elements;
+    expect([strandEnd(els, 0), strandEnd(els, 1), strandEnd(els, 2)]).toEqual([7, 14, -1]);
+    expect(trimStrand(els, 1, 2)!.length).toBe(13);
+    expect(trimStrand(els, 1, 7)).toBeNull();                                     // would empty the branch
+    expect(trimStrand(els, 0, 1)).toBeNull();                                     // the crossing anchors the branch
+    expect(trimStrand(els, 1, 0)).toBe(els);
+  });
+  it('re-filling a straight run: Distanz46 before the Y merge becomes a Gerade60, the branch then ends in the entrance', () => {
+    const els = decodeChain(TRACK)!.elements, t = entryOf(els);
+    const r = findRunAdjustments(els, t, { strand: 1 });
+    expect(r.length).toBe(1);
+    expect(r[0].edits).toEqual([{ at: 13, count: 1, parts: [{ part: 'Gerade60_40-40_16mm' }] }]);
+    expect([r[0].n, r[0].drop]).toEqual([1, 1]);
+    const out = applyConnection(els, r[0]);
+    expect(ids(out).slice(12)).toEqual(['LangeKurve90_R90_40*', 'Gerade60_40-40', 'YMerge120_40-40']);
+    expect(out[8].branch!.from).toBe(out[7]);                                     // anchors survive
+    const q = branchEnd(out);
+    expect(Math.hypot(q.out!.p[0] - t.p[0], q.out!.p[1] - t.p[1])).toBeLessThan(0.05);
+    expect(errors(out)).toEqual([]);
+  });
+  it('re-filling needs a run that points along the gap and a length the straights can make', () => {
+    // 13-part variant: the end is 8 mm short AND 8 mm beside the entrance; the last run would have to be 56 mm (7 steps),
+    // which no straight/spacer combination makes
+    const els = decodeChain('m1.9.23.x.u.2w.g.2h.12@6:2.y*.g.d.l*.c')!.elements;
+    expect(findRunAdjustments(els, entryOf(els), { strand: 1 })).toEqual([]);
+  });
+  it('from the end of a branch, also starting one or two parts earlier (dropped parts are replaced)', () => {
+    const els = decodeChain(TRACK.replace(/\.52$/, ''))!.elements, t = entryOf(els);   // without the Y merge
+    const r = find('branch-drop', els, t, { strand: 1, maxDrop: 2, maxParts: 8 });
+    expect(r.length).toBeGreaterThanOrEqual(1);
+    expect(r.every((s) => s.strand === 1 && s.drop >= 1)).toBe(true);           // nothing fits onto the end itself
+    for (const s of r) {
+      const out = applyConnection(els, s);
+      expect(out.length).toBe(els.length - s.drop + s.n);
+      const q = branchEnd(out);
+      expect(Math.hypot(q.out!.p[0] - t.p[0], q.out!.p[1] - t.p[1]), s.text).toBeLessThan(0.4);
+      expect(errors(out), s.text).toEqual([]);
+    }
+  });
+  // Another user's track: lift loop with a spiral and Gerade88 (both off-grid); the end should run into the free cross
+  // lane of the crossing (part 3) but stops 6.4 mm short
+  const SPIRAL = 'm1.24.g.2h.l.52.23.j.l.3g.2w.13.3e.3n';
+  const laneOf = (els: ChainElement[]): Extract<ConnectTarget, { kind: 'port' }> => {
+    const f = solveChain(els).freePorts.find((q) => q.idx === 2 && q.port === 3)!; return { kind: 'port', p: f.w.p, n: f.w.n };
+  };
+  it('connectGap: 6.4 mm ahead, not a whole number of grid thirds, caused by the spiral and Gerade88', () => {
+    const els = decodeChain(SPIRAL)!.elements, t = laneOf(els);
+    const g = connectGap(els, t)!;
+    expect(g.along).toBeCloseTo(6.4, 2); expect(g.side).toBeCloseTo(0, 2);
+    expect(g.onGrid).toBe(false);
+    expect(g.offGrid.map((i) => ids(els)[i])).toEqual(['Spirale_100-60', 'Gerade88_60-40']);
+    expect(findRunAdjustments(els, t)).toEqual([]);
+  });
+  it('two parallel runs: with a slide instead of the spiral, the Gerade88 run and the opposite run both grow', () => {
+    const els = decodeChain(SPIRAL)!.elements; els[5] = { part: 'Rutsche120_100-60_16mm' };
+    const t = laneOf(els);
+    expect(connectGap(els, t)!.along).toBeCloseTo(14.933, 2);                    // still off: Gerade88 is 2 units short
+    const r = findRunAdjustments(els, t);
+    expect(r.length).toBeGreaterThanOrEqual(1);
+    expect(r.every((s) => JSON.stringify(s.edits!.map((e) => [e.at, e.count])) === '[[6,1],[11,2]]')).toBe(true);
+    // fixes that keep a part of the old run rank first: fewer parts changed than replacing both runs (2 + 2 -> 2 + 2 is 7)
+    expect(r.every((s) => s.n + s.drop <= 6)).toBe(true);
+    expect(r[0].edits![1].parts.map((p) => p.part)).toContain('Gerade80_50-50_16mm');                  // kept from the old run
+    for (const s of r) {
+      const L = solveChain(applyConnection(els, s));
+      expect(L.issues.filter((i) => i.level === 'error'), s.text).toEqual([]);
+      expect(L.freePorts.some((q) => q.idx === 2 && q.port === 3), s.text).toBe(false);   // docked into the lane
+    }
+  });
+  it('a run change that moves the target is checked against the target where it ends up (here: the crossing moves too)', () => {
+    const els = decodeChain(SPIRAL)!.elements;
+    els[5] = { part: 'Rutsche120_100-60_16mm' };
+    els[1].part = 'Gerade60_60-50_16mm'; els[11].part = 'Gerade60_60-50_16mm'; els[12].part = 'Gerade60_50-50_16mm';
+    els.splice(6, 1, { part: 'Gerade60_60-50_16mm' }, { part: 'Gerade60_50-40_16mm' });
+    els.splice(2, 0, { part: 'Kurve90_50_16mm' });
+    const L = solveChain(els);
+    expect(L.issues.filter((i) => i.level === 'error')).toEqual([]);
+    const f = L.freePorts.find((q) => q.idx === 3 && q.port === 3)!;
+    const r = findRunAdjustments(els, { kind: 'port', p: f.w.p, n: f.w.n, rimCode: 50 });
+    expect(r.length).toBeGreaterThan(0);
+    for (const s of r) {
+      const out = applyConnection(els, s);
+      expect(solveChain(out).freePorts.some((q) => out[q.idx] === els[3] && q.port === 3), s.text).toBe(false);   // lane taken
+    }
+  });
+  it('a run change must deliver the rim the target needs', () => {
+    // Y merge at the end delivers rim 40; with a rim-50 entrance, re-filling a flat straight cannot help
+    const els = decodeChain(TRACK)!.elements;
+    els[0].part = 'Gerade60_50-40_16mm'; els[13].part = 'Gerade60_40-40_16mm';
+    const e = solveChain(els).placed[0].entry!;
+    expect(findRunAdjustments(els, { kind: 'port', p: e.p, n: e.n, rimCode: 50 }, { strand: 1 })).toEqual([]);
+  });
+  it('backing up never re-adds the part it just removed; maxCost and slack cap the search', () => {
+    const els = chain('Lift1_Gerade', 'Gerade120_60-60');
+    const r = find('drop-readd', els, { kind: 'ring' }, { maxParts: 10, maxDrop: 1, max: 8 });
+    expect(r.length).toBeGreaterThan(0);
+    for (const s of r) if (s.drop) expect(s.elements[0].part, s.text).not.toBe('Gerade120_60-60_16mm');
+    const best = Math.min(...r.map((s) => s.n + s.drop));
+    const capped = find('maxcost', els, { kind: 'ring' }, { maxParts: 10, maxDrop: 1, max: 8, maxCost: best });
+    expect(capped.length).toBeGreaterThan(0);
+    expect(capped.every((s) => s.n + s.drop <= best)).toBe(true);
+    const slack = find('slack', els, { kind: 'ring' }, { maxParts: 10, maxDrop: 1, max: 8, slack: 0 });
+    expect(slack.every((s) => s.n + s.drop === best)).toBe(true);
+  });
+  it('no suggestion cuts another strand off what it runs into (review: run change moved the Y merge of a branch)', () => {
+    const els = trimStrand(demo('loop-funnel-flipflop'), 0, 1)!;
+    const L = solveChain(els), branchEnd0 = L.placed[L.strands[1].idxs.at(-1)!];
+    expect(branchEnd0.out).toBeNull();                                            // the flip-flop branch ends in the Y merge
+    for (const s of [...findRunAdjustments(els, { kind: 'ring' }), ...findConnections(els, { kind: 'ring' }, { maxParts: 8, maxDrop: 1, max: 6 })]) {
+      const out = applyConnection(els, s), L2 = solveChain(out), st = L2.strands[1];
+      expect(L2.placed[st.idxs.at(-1)!].out, s.text).toBeNull();                  // still docked
+    }
+  });
+  it('connectGap blames only off-grid parts between the end and the target', () => {
+    const els = decodeChain(TRACK)!.elements;
+    const g = connectGap(els, entryOf(els), 1)!;
+    expect(g.offGrid).not.toContain(0);                                           // the target part (entry = its origin)
+    expect(g.offGrid.map((i) => ids(els)[i])).toEqual(['Spirale_100-60', 'Distanz46-0_40-40']);
+  });
+  it('applyEdits keeps a part that stays (same element: settings like omit survive)', () => {
+    const els = chain('StartSchale_60', 'Gerade120_60-50', 'Gerade120_50-40', 'EndSchale_40');
+    els[1].omit = [0];
+    const out = applyEdits(els, [{ at: 1, count: 2, parts: [els[1], { part: 'Gerade60_50-40_16mm' }] }]);
+    expect(out[1]).toBe(els[1]); expect(out[1].omit).toEqual([0]);
+    expect(ids(out)).toEqual(['StartSchale_60', 'Gerade120_60-50', 'Gerade60_50-40', 'EndSchale_40']);
+  });
+  it('stats.timedOut: an empty result after the time limit is not "no route"', () => {
+    const els = decodeChain(SPIRAL)!.elements, stats = { timedOut: false };
+    findConnections(els, laneOf(els), { maxParts: 8, maxDrop: 2, timeMs: 1, stats });
+    expect(stats.timedOut).toBe(true);
+    const done = { timedOut: false };
+    findConnections(chain('Lift1_Gerade', 'Gerade120_60-60'), { kind: 'ring' }, { maxParts: 10, max: 1, stats: done });
+    expect(done.timedOut).toBe(false);
+  });
+  it('a loop is only closed by the main strand', () => {
+    expect(findConnections(decodeChain(TRACK)!.elements, { kind: 'ring' }, { strand: 1 })).toEqual([]);
   });
 });
 

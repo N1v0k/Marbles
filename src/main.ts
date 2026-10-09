@@ -11,7 +11,8 @@ const thumb = (p: Part): string | undefined => (isJapandi() ? THUMBS_J[p.id] : u
 import { Viewer, colorFor, type Ghost, type GhostItem, type Marker } from './viewer3d';
 import { t, tf, pick, num, partName, liftName, setLang, getLang, type Lang } from './i18n';
 import { gridInfo, gridRef, nearRing } from './grid';
-import { findConnections, applyConnection, mainEnd, type ConnectTarget, type ConnectSuggestion } from './connect';
+import { connectPreview } from './preview';
+import { findConnections, findRunAdjustments, connectGap, applyConnection, mainEnd, strandEnd, type ConnectTarget, type ConnectSuggestion } from './connect';
 import { loadState, saveState, History, shareUrl, linkHash, decodeChain, sanitizeElements, sanitizeSim, cloneChain, toPlain, type AppState } from './state';
 import { bom, bomCsv, trackJson, makerworldList, download, exportName } from './export';
 import { tunnelAuto, tunnelLaneTargets, hasTunnelVariant } from './tunnel';
@@ -291,12 +292,8 @@ function renderModeLine() {
   oe.hidden = !lbl;
   if (!lbl) { oe.innerHTML = ''; return; }
   const g = gridLabel();
-  // Connect: only at the end of the main strand (where the route search starts), not in branch/insert mode, and only if
-  // the displayed open end is that end (with branches, append mode shows the end of the last strand). "Continue strand"
-  // on the main strand sets insertAfter to its end, which qualifies.
-  const endMain = mainEnd(state.elements);
-  const atMainEnd = insertAfter == null ? endMain === state.elements.length - 1 : insertAfter === endMain;
-  const canConnect = !branchFrom && atMainEnd && !choice && connectTargets().length > 0;
+  // Connect: from the displayed open end if it is the end of a strand (main strand or branch), not in branch/insert mode
+  const canConnect = connectStrand() != null && connectTargets().length > 0;
   oe.innerHTML = `<div class="oe-row"><span>${esc(lbl)}</span>${canConnect ? `<button id="btn-connect" class="small-btn">${t('btnConnect')}</button>` : ''}</div>` +
     (g ? `<div class="oe-grid" title="${esc(t('gridHelp'))}">${esc(g)}</div>` : '');
   oe.querySelector('#btn-connect')?.addEventListener('click', openConnect);
@@ -658,16 +655,39 @@ function renderMarkers() {
 /** A connect goal: one or more target ports (cross tunnel: one per variant/side); tail = element appended after the
  *  approach (the cross tunnel itself). */
 interface ConnectGoal { key: string; label: string; targets: { t: ConnectTarget; tail?: ChainElement }[]; tunnelOf?: { owner: number; slot: number } }
-/** Goals for the open end of the main strand: closing the loop (first part with an entry), free cross lanes of X-crossings
- *  and lanes under 120/95 adapters that are not higher than the open end (the connecting parts only go downhill). */
-function connectTargets(): ConnectGoal[] {
+/** Strand whose end is the displayed open end (the route search starts there); null in branch/choice mode or when
+ *  inserting in the middle of a strand. Append mode shows the end of the last strand. */
+function connectStrand(): number | null {
+  if (branchFrom || choice) return null;
+  const i = insertAfter ?? state.elements.length - 1;
+  const q = layout.placed[i]; if (!q) return null;
+  const st = layout.strands[q.strand];
+  return st && st.idxs[st.idxs.length - 1] === i ? q.strand : null;
+}
+/** Goals for the open end of the strand: closing the loop (main strand; a branch: into the free entry of the first part),
+ *  free cross lanes of X-crossings and lanes under 120/95 adapters that are not higher than the open end (the connecting
+ *  parts only go downhill). */
+function connectTargets(strand = connectStrand() ?? 0): ConnectGoal[] {
   const out: ConnectGoal[] = [];
   if (!layout.placed.length) return out;
-  const endI = mainEnd(state.elements), end = layout.placed[endI];
+  const endI = strandEnd(state.elements, strand), end = layout.placed[endI];
   if (!end || !end.connected || !end.out) return out;
   const zEnd = end.out.p[2] + 0.5;
   const first = layout.placed[0];
-  if (!layout.ring && endI > 0 && first?.connected && first.entry) out.push({ key: 'ring', label: tf('connectRing', { name: shortName(first.part) }), targets: [{ t: { kind: 'ring' } }] });
+  // the entrance must still be free: not the closed loop, and no strand already running into it - if it is this strand,
+  // its end is not open at all (nothing to connect; backing up would tear the connection out)
+  const fe = first?.entry;
+  const intoEntry = (k: number) => {
+    const st = layout.strands[k], q = st?.idxs.length ? layout.placed[st.idxs[st.idxs.length - 1]] : null;
+    return !!fe && !!q?.exit && Math.hypot(q.exit.p[0] - fe.p[0], q.exit.p[1] - fe.p[1], q.exit.p[2] - fe.p[2]) < 0.4 && q.exit.n[0] * fe.n[0] + q.exit.n[1] * fe.n[1] < -0.99;
+  };
+  if (strand > 0 && intoEntry(strand)) return out;
+  const entryTaken = layout.strands.some((_, k) => intoEntry(k));
+  if (!layout.ring && !entryTaken && endI > 0 && first?.connected && first.entry) {
+    const name = shortName(first.part);
+    out.push(strand === 0 ? { key: 'ring', label: tf('connectRing', { name }), targets: [{ t: { kind: 'ring' } }] }
+      : { key: 'entry', label: tf('connectEntry', { name }), targets: [{ t: { kind: 'port', p: first.entry.p, n: first.entry.n, rimCode: requiredFeedRim(first.part, first.reversed) ?? undefined } }] });
+  }
   for (const f of layout.freePorts) {
     if (f.kind !== 'lane' || f.w.p[2] > zEnd) continue;
     const q = layout.placed[f.idx];
@@ -686,63 +706,169 @@ function connectTargets(): ConnectGoal[] {
 /** Insert a suggestion (plus an optional appended tunnel) into the chain. */
 function connectWork(s: ConnectSuggestion, tail?: ChainElement): ChainElement[] {
   const work = applyConnection(state.elements, s);
-  if (tail) work.splice(mainEnd(state.elements) + 1 + s.elements.length, 0, { ...tail });
+  if (tail) work.splice(strandEnd(work, s.strand) + 1, 0, { ...tail });
   return work;
+}
+/** Element to select after applying: the last new part (end of the strand, or the last re-filled run). */
+function connectLast(s: ConnectSuggestion, work: ChainElement[]): ChainElement | undefined {
+  if (s.edits) return [...work].reverse().find((x) => !state.elements.includes(x));
+  return work[strandEnd(work, s.strand)];
 }
 let connectRun = 0;
 function tailName(e: ChainElement): string { const p = catalog.byId.get(e.part); return p ? shortName(p) : e.part; }
-function openConnect() {
-  const dlg = $('#dlg-connect') as HTMLDialogElement;
-  const goals = connectTargets();
-  const box = $('#connect-goals'), res = $('#connect-results');
-  res.innerHTML = '';
-  box.innerHTML = goals.length ? goals.map((g, i) => `<button type="button" class="connect-goal" data-goal="${i}">${esc(g.label)}</button>`).join('') : `<p class="small muted">${t('connectNoTargets')}</p>`;
-  box.querySelectorAll<HTMLButtonElement>('button[data-goal]').forEach((b) => b.addEventListener('click', () => {
-    box.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
-    runConnect(goals[Number(b.dataset.goal)]);
-  }));
-  if (!dlg.open) dlg.showModal();
-  if (goals.length === 1) (box.querySelector('button[data-goal]') as HTMLButtonElement | null)?.click();
+/** Results of one goal: validated suggestions with their solved layout (for the preview), at most CONNECT_SHOW, one per
+ *  route shape; none = no route (the dialog then explains why). */
+interface ConnectFound { s: ConnectSuggestion; tail?: ChainElement; work: ChainElement[]; L2: Layout; cost: number; added: number }
+/** Goals whose search stopped at its time limit without a result ("not found", not "no route"). */
+const connectTimedOut = new Set<ConnectGoal>();
+const CONNECT_SHOW = 3;
+/** Route shape: the turns and level drops of the new parts (straights and curve radii left out), for re-fills which
+ *  runs change. Suggestions of the same shape are the same idea; only the shortest is shown. */
+function routeShape(f: ConnectFound): string {
+  if (f.s.edits) return 'run:' + f.s.edits.map((e) => `${e.at}+${e.count}`).join();
+  const turns = f.s.elements.map((e) => {
+    const p = catalog.byId.get(e.part); if (!p) return '?';
+    if (p.family === 'levelChanger') return 'D';
+    return p.turn ? (Math.sign(p.turn) * (e.reversed ? -1 : 1) > 0 ? 'L' : 'R') : '';
+  }).join('');
+  return `d${f.s.drop}:${turns}|${f.tail ? f.tail.part + (f.tail.reversed ? '*' : '') : ''}`;
 }
-/** Search each target port in turn (yielding so the UI stays responsive); results are validated and sorted by part count. */
-async function runConnect(g: ConnectGoal) {
-  const run = ++connectRun;
-  const res = $('#connect-results');
-  res.innerHTML = `<p class="small muted">${t('connectSearching')}</p>`;
+/** Search one goal (each target port in turn, yielding so the UI stays responsive). Sorted by parts changed, then the
+ *  shorter added track; one suggestion per route shape. */
+async function searchGoal(g: ConnectGoal, run: number, timeMs: number): Promise<ConnectFound[] | null> {
   const errs0 = layout.issues.filter((i) => i.level === 'error').length;
-  const found: { s: ConnectSuggestion; tail?: ChainElement; key: string }[] = [];
+  const found: ConnectFound[] = [];
   const maxParts = g.key === 'ring' ? 10 : 8;
+  let timedOut = false;
+  const strand = connectStrand() ?? 0;
   for (const tg of g.targets) {
     await new Promise((r) => setTimeout(r, 0));
-    if (run !== connectRun) return;
-    const sug = findConnections(state.elements, tg.t, { maxParts, max: 4, timeMs: g.targets.length > 1 ? 1200 : 2500 });
+    if (run !== connectRun) return null;
+    // re-fill an earlier straight run (cheap; not with a tunnel, which is appended), then routes from the end - also
+    // starting one or two parts earlier
+    const runs = tg.tail ? [] : findRunAdjustments(state.elements, tg.t, { strand });
+    const cheapest = Math.min(...runs.map((x) => x.n + x.drop), ...found.map((x) => x.cost));      // known so far
+    const stats = { timedOut: false };
+    const sug = [...runs, ...findConnections(state.elements, tg.t, { maxParts, max: 6, strand, maxDrop: 2, slack: 2, stats,
+      maxCost: Number.isFinite(cheapest) ? cheapest + 2 : undefined, timeMs: timeMs / g.targets.length })];
+    if (stats.timedOut) timedOut = true;
     for (const s of sug) {
+      const work = connectWork(s, tg.tail), L2 = solveChain(work);
       if (tg.tail) {
         // cross tunnel: must replace the adapter and must not add errors
-        const L2 = solveChain(connectWork(s, tg.tail));
-        const last = L2.placed[mainEnd(state.elements) + 1 + s.elements.length];
+        const last = L2.placed[strandEnd(work, s.strand)];
         if (!last?.connected || L2.adapters.some((x) => x.owner === g.tunnelOf!.owner && x.slot === g.tunnelOf!.slot)) continue;
         if (L2.issues.filter((i) => i.level === 'error').length > errs0) continue;
       }
-      const key = s.elements.map((e) => e.part + (e.reversed ? '*' : '')).join(',') + (tg.tail ? '|' + tg.tail.part + (tg.tail.reversed ? '*' : '') : '');
-      if (!found.some((f) => f.key === key)) found.push({ s, tail: tg.tail, key });
+      found.push({ s, tail: tg.tail, work, L2, cost: s.n + s.drop + (tg.tail ? 1 : 0), added: L2.length - layout.length });
     }
   }
-  if (run !== connectRun) return;
-  found.sort((x, y) => x.s.n - y.s.n || x.s.err - y.s.err);
-  const top = found.slice(0, 5);
-  if (!top.length) { res.innerHTML = `<p class="small">${tf('connectNone', { n: maxParts })}</p>`; return; }
-  res.innerHTML = top.map((f, i) => `<div class="connect-row"><div><b>${tf('connectParts', { n: f.s.n + (f.tail ? 1 : 0) })}</b> <span class="small">${esc(f.s.text)}${f.tail ? ' + ' + esc(tailName(f.tail)) : ''}</span></div>` +
+  if (timedOut && !found.length) connectTimedOut.add(g); else connectTimedOut.delete(g);
+  // fewest parts changed, then the shorter route; at equal cost keep the track as it is (no removal) before re-filling
+  found.sort((x, y) => x.cost - y.cost || x.added - y.added || +!!x.s.edits - +!!y.s.edits || x.s.drop - y.s.drop || x.s.err - y.s.err);
+  const shapes = new Set<string>();
+  // alternatives only if they are about as short as the best (a detour of many more parts is noise, not a choice)
+  return found.filter((f) => { const k = routeShape(f); if (shapes.has(k) || f.cost > found[0].cost + 2) return false; shapes.add(k); return true; })
+    .slice(0, CONNECT_SHOW);
+}
+/** Open the dialog: search all goals, label each with its cheapest connection (or "no route"), list them cheapest first
+ *  and show the cheapest - usually the part the user is heading for. */
+async function openConnect() {
+  const dlg = $('#dlg-connect') as HTMLDialogElement;
+  const goals = connectTargets();
+  const box = $('#connect-goals'), res = $('#connect-results');
+  const run = ++connectRun;
+  const results: (ConnectFound[] | undefined)[] = [];
+  let shown = -1, picked = false;
+  res.innerHTML = '';
+  box.innerHTML = goals.length ? goals.map((g, i) => `<button type="button" class="connect-goal" data-goal="${i}">${esc(g.label)}<span class="connect-badge small muted">…</span></button>`).join('')
+    : `<p class="small muted">${t('connectNoTargets')}</p>`;
+  const show = (i: number) => {
+    shown = i;
+    box.querySelectorAll('button[data-goal]').forEach((x) => x.classList.toggle('on', Number((x as HTMLElement).dataset.goal) === i));
+    const r = results[i];
+    if (!r) { res.innerHTML = `<p class="small muted">${t('connectSearching')}</p>`; return; }
+    renderConnect(goals[i], r);
+  };
+  box.querySelectorAll<HTMLButtonElement>('button[data-goal]').forEach((b) => b.addEventListener('click', async () => {
+    picked = true;
+    const i = Number(b.dataset.goal);
+    show(i);
+    if (results[i] && !results[i]!.length && connectTimedOut.has(goals[i]) && run === connectRun) {   // search again, longer
+      results[i] = undefined; show(i);
+      const r = await searchGoal(goals[i], run, 6000);
+      if (r == null || run !== connectRun) return;
+      results[i] = r;
+      const badge = b.querySelector('.connect-badge');
+      if (badge) badge.textContent = r.length ? tf('connectChanged', { n: r[0].cost }) : t(connectTimedOut.has(goals[i]) ? 'connectNoRouteTime' : 'connectNoRoute');
+      if (shown === i) show(i);
+    }
+  }));
+  if (!dlg.open) dlg.showModal();
+  dlg.addEventListener('close', () => { if (run === connectRun) connectRun++; }, { once: true });   // stop searching
+  if (!goals.length) return;
+  res.innerHTML = `<p class="small muted">${t('connectSearching')}</p>`;
+  const per = goals.length > 4 ? 900 : goals.length > 2 ? 1500 : 3000;            // ms per goal
+  // cheapest first, goals without a route (or not searched yet) last
+  const best = (i: number) => results[i]?.length ? results[i]![0].cost * 1e6 + results[i]![0].added : results[i] ? 2e12 : 1e12;
+  for (let i = 0; i < goals.length; i++) {
+    const r = await searchGoal(goals[i], run, per);
+    if (r == null || run !== connectRun) return;
+    results[i] = r;
+    const badge = box.querySelector(`button[data-goal="${i}"] .connect-badge`);
+    if (badge) badge.textContent = r.length ? tf('connectChanged', { n: r[0].cost })                          // added + removed, as ranked
+      : t(connectTimedOut.has(goals[i]) ? 'connectNoRouteTime' : 'connectNoRoute');
+    const order = goals.map((_, k) => k).sort((a, b) => best(a) - best(b) || a - b);
+    for (const k of order) { const b = box.querySelector(`button[data-goal="${k}"]`); if (b) box.appendChild(b); }
+    // show the best so far as soon as there is one (it usually is the part the user is heading for), unless picked
+    if (picked) { if (shown === i) show(i); }
+    else if (results[order[0]]?.length && order[0] !== shown) show(order[0]);
+    else if (shown === i) show(i);
+  }
+  if (!picked && shown < 0) show(0);                                       // no goal has a route: explain the first
+}
+/** Nothing found: say how far the end is from the target and why it cannot be closed - off the grid because of off-grid
+ *  parts (only another off-grid part or a different route helps), or on the grid but blocked or too far. */
+function noConnectionText(g: ConnectGoal, strand: number, maxParts: number): string {
+  const gap = g.targets.length === 1 && !g.targets[0].tail ? connectGap(state.elements, g.targets[0].t, strand) : null;
+  if (!gap) return tf('connectNone', { n: maxParts });
+  let s = tf('connectGap', { along: num(gap.along), side: num(Math.abs(gap.side)) });
+  if (!gap.onGrid && gap.offGrid.length)
+    s += ' ' + tf('connectOffGrid', { parts: gap.offGrid.map((i) => `${i + 1}. ${shortName(layout.placed[i].part)}`).join(', ') });
+  else s += ' ' + tf(gap.onGrid ? 'connectBlocked' : 'connectNone', { n: maxParts });
+  return s;
+}
+/** Results of a goal: up to CONNECT_SHOW suggestions with their top view, or the explanation. */
+function renderConnect(g: ConnectGoal, top: ConnectFound[]) {
+  const res = $('#connect-results');
+  const maxParts = g.key === 'ring' ? 10 : 8;
+  if (!top.length) {
+    res.innerHTML = `<p class="small">${esc(connectTimedOut.has(g) ? tf('connectTimeout', { n: maxParts }) : noConnectionText(g, connectStrand() ?? 0, maxParts))}</p>`;
+    return;
+  }
+  const head = (f: ConnectFound) => f.s.edits ? t('connectRun')
+    : f.s.drop ? tf('connectPartsDrop', { n: f.s.n + (f.tail ? 1 : 0), k: f.s.drop }) : tf('connectParts', { n: f.s.n + (f.tail ? 1 : 0) });
+  // top view of each suggestion: what stays, what is new, what goes, where the end connects
+  const preview = (f: ConnectFound) => {
+    const st = f.L2.strands[f.s.strand];
+    const q = st?.idxs.length ? f.L2.placed[st.idxs[st.idxs.length - 1]] : null, e = f.tail ? null : q?.exit;
+    return connectPreview({ elements: state.elements, L: layout }, { elements: f.work, L: f.L2 }, e ? [e.p[0], e.p[1]] : null, t('connectPreview'));
+  };
+  res.innerHTML = top.map((f, i) => `<div class="connect-row">${preview(f)}<div><b>${esc(head(f))}</b> <span class="small">${esc(f.s.text)}${f.tail ? ' + ' + esc(tailName(f.tail)) : ''}</span></div>` +
     `<button type="button" class="small-btn primary" data-apply="${i}">${t('connectApply')}</button></div>`).join('');
-  res.querySelectorAll<HTMLButtonElement>('button[data-apply]').forEach((b) => b.addEventListener('click', () => {
+  const drawnAt = performance.now();
+  res.querySelectorAll<HTMLButtonElement>('button[data-apply]').forEach((b) => b.addEventListener('click', (ev) => {
+    if (ev.timeStamp < drawnAt) return;          // clicked before this list was drawn (queued during a search): not this one
     const f = top[Number(b.dataset.apply)];
     const prevEl = snapshot();
-    const work = connectWork(f.s, f.tail);
-    const last = work[mainEnd(state.elements) + f.s.elements.length + (f.tail ? 1 : 0)];
+    const work = f.work;
+    const last = f.tail ? work[strandEnd(work, f.s.strand)] : connectLast(f.s, work);
+    connectRun++;                                                         // stop searching the other goals
     ($('#dlg-connect') as HTMLDialogElement).close();
     commitElements(work, { select: last ?? null, insertAnchor: null, replaceTarget: null }, prevEl);
     const stops = steps.some((st) => st.status === 'stop');
-    toast((f.tail ? tf('connectDoneTunnel', { n: f.s.n, tunnel: tailName(f.tail) }) : tf('connectDone', { n: f.s.n })) + (stops ? ' ' + t('connectStops') : ''), 6000);
+    toast((f.tail ? tf('connectDoneTunnel', { n: f.s.n, tunnel: tailName(f.tail) }) : f.s.edits ? tf('connectDoneRun', { n: f.s.n, k: f.s.drop })
+      : f.s.drop ? tf('connectDoneDrop', { n: f.s.n, k: f.s.drop }) : tf('connectDone', { n: f.s.n })) + (stops ? ' ' + t('connectStops') : ''), 6000);
   }));
 }
 

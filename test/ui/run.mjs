@@ -860,17 +860,47 @@ await test('A new share link in an open tab is loaded; loading JSON restores the
   eq(await page.inputValue('#inp-mass'), '16.8', 'ball mass');
   eq(await kb('Math.round(s.steps[0].vOut)'), 300, 'ball check uses the loaded push');
 });
-await test('"Connect" only when the open end shown is the end of the main strand', async () => {
+await test('"Connect" at the end of any strand: a branch leads into the entrance of part 1, the main strand closes the loop', async () => {
   // lift -> flip-flop -> straight (main strand, loop possible); branch at the flip-flop -> straight (last list entry)
   const c = (n) => CODES[n + '_16mm'];
   await fresh({ hash: '#t=m1.' + [c('Lift1_Gerade'), c('Kippwippe_120-60_Links'), c('Gerade120_60-60'), c('Gerade120_60-60') + '@1:3'].join('.') + '&s=j' });
   eq(await kb('s.layout.strands.length'), 2, 'two strands');
-  ok((await kb('s.connectGoals')).includes('ring'), 'loop would be a possible goal');
-  // open end = end of the branch: no "Connect" here (it would extend the main strand instead)
-  eq(await page.locator('#btn-connect').count(), 0, 'no connect at the end of the branch');
-  // "continue strand" on the main strand: now the open end matches the assistant
+  // open end = end of the branch: Connect starts there; its goal is the entrance of part 1 (the loop is the main strand's)
+  eq(await page.locator('#btn-connect').count(), 1, 'connect at the end of the branch');
+  const goals = await kb('s.connectGoals');
+  eq(goals, ['entry'], 'branch goal: entrance of part 1, not the loop');
+  // the flip-flop outlet is off the grid: no route, the dialog names the part that causes it
+  await page.click('#btn-connect'); await page.waitForTimeout(200);
+  await page.waitForFunction(() => /2\. (FlipFlop|Kippwippe)/.test(document.querySelector('#connect-results')?.textContent ?? ''), null, { timeout: 20000 });
+  eq(await page.locator('#connect-results button[data-apply]').count(), 0, 'no suggestion');
+  await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+  // "continue strand" on the main strand: Connect closes the loop from there
   await page.click('#chain-list li.strand-head[data-strand="0"] button[data-cont]'); await page.waitForTimeout(400);
   eq(await page.locator('#btn-connect').count(), 1, 'connect at the end of the main strand');
+  ok((await kb('s.connectGoals')).includes('ring'), 'main strand goal: the loop');
+});
+
+await test('"Connect" re-fills a straight run: the branch ends 7.5 mm short behind a Y merge, Distanz46 becomes a Gerade60; undo', async () => {
+  await fresh({ hash: '#t=m1.9.23.x.u.c.2w.g.2h.12@7:2.y*.g.d.s*.9.52&s=j' });
+  const ids0 = await ids();
+  await page.click('#btn-connect');
+  // all goals are searched; the cheapest (here: the entrance of part 1, 2 parts changed) is listed first and shown
+  await page.waitForSelector('#connect-results button[data-apply]', { timeout: 20000 });
+  await page.waitForFunction(() => [...document.querySelectorAll('.connect-badge')].every((x) => x.textContent !== '…'), null, { timeout: 30000 });
+  const goals = await kb('s.connectGoals');
+  eq(Number(await page.getAttribute('#connect-goals button[data-goal]:first-child', 'data-goal')), goals.indexOf('entry'), 'cheapest goal first');
+  ok(await page.locator(`#connect-goals button[data-goal="${goals.indexOf('entry')}"]`).evaluate((b) => b.classList.contains('on')), 'and opened');
+  eq(await page.locator('#connect-results .connect-row svg.cp').count(), await page.locator('#connect-results button[data-apply]').count(), 'a top-view preview per suggestion');
+  eq(await page.locator('#connect-results .connect-row').first().locator('svg.cp .cp-new').count(), 1, 'preview: one new part');
+  await page.click('#connect-results button[data-apply="0"]'); await page.waitForTimeout(800);
+  const after = await ids();
+  eq(after.length, ids0.length, 'one part replaced, none added');
+  eq([after[13], after[14]], ['Gerade60_40-40', 'YMerge120_40-40'], 'Distanz46 -> Gerade60, the Y merge stays');
+  eq(await kb("s.layout.issues.filter((i) => i.level === 'error').length"), 0, 'no errors');
+  eq(await kb('s.connectGoals'), [], 'the branch now ends in the entrance: nothing to connect');
+  eq(await page.locator('#btn-connect').count(), 0, 'no Connect button');
+  await page.click('#btn-undo'); await page.waitForTimeout(400);
+  eq(await ids(), ids0, 'undo reverts the change');
 });
 
 await browser.close(); server.close();

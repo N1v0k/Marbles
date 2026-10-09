@@ -242,11 +242,20 @@ body.japandi .plate-color { border-radius: 0; }
 #issues-list li.info { background: #eef4fb; }
 body.japandi #issues-list li.info { background: #e6e8ec; }
 .connect-goals { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
-.connect-goals button { text-align: left; }
+.connect-goals button { text-align: left; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.connect-badge { white-space: nowrap; }
 .connect-goals button.on { outline: 2px solid var(--accent, #26a69a); }
 .connect-results { display: flex; flex-direction: column; gap: 6px; margin: 6px 0 10px; max-height: 50vh; overflow: auto; }
 .connect-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; }
 body.japandi .connect-row { border-radius: 1px; }
+.connect-row > div { flex: 1; }
+/* connect preview (top view): kept parts muted, new parts accent, removed parts dashed, ring where the end connects */
+svg.cp { flex: 0 0 auto; background: var(--bg); overflow: hidden; border: 1px solid var(--line); border-radius: 4px; }
+body.japandi svg.cp { border-radius: 1px; }
+svg.cp .cp-keep { fill: var(--line); stroke: var(--muted); stroke-width: 1; vector-effect: non-scaling-stroke; }
+svg.cp .cp-new { fill: var(--accent); fill-opacity: .85; stroke: var(--accent); stroke-width: 1; vector-effect: non-scaling-stroke; }
+svg.cp .cp-gone { fill: none; stroke: var(--err); stroke-width: 1.5; stroke-dasharray: 3 2; vector-effect: non-scaling-stroke; }
+svg.cp .cp-end { fill: none; stroke: var(--text); stroke-width: 2; vector-effect: non-scaling-stroke; }
 .mode-line.branch { background: #fdeedd; } .mode-line.choose { background: #e8f2fc; }
 .pcard { display: grid; grid-template-columns: 58px 1fr; gap: 8px; align-items: start; border: 1px solid var(--line); border-left: 5px solid #ccc; border-radius: 8px; padding: 6px 8px; margin-bottom: 6px; cursor: pointer; background: #fff; }
 .pcard:hover { border-color: var(--accent); box-shadow: 0 1px 6px rgba(30,136,229,.25); }

@@ -2,9 +2,10 @@
 // Where does the open end lie in the 8 mm grid of the chain start? Almost all parts keep the grid (Gerade120 = 64 mm,
 // Gerade60 = 32, curves R24/R48, lift sockets 16/32); Gerade80 and Distanz65 shift by +1/3 grid (2.667 mm), Gerade100
 // by +2/3. Along the running direction a one-third offset can therefore be fixed with one part; across only after a
-// curve. Off-grid parts (Distanz46, flip-flop, funnel, spiral) yield 'off'.
+// curve. Off-grid parts (Distanz46, Gerade88, flip-flop, funnel, spiral) yield 'off' - see offGrid().
 // nearRing: if the main strand ends just short of the first part's entry (loop almost closed), the UI says by how much.
 import type { Layout, PortW } from './chain';
+import type { Part } from './catalog';
 
 export const GRID = 8;                 // mm
 const THIRD = GRID / 3;                // 2.667 mm
@@ -23,6 +24,17 @@ function classify(need: number): GridState {
   if (Math.abs(need - THIRD) < TOL) return 'third';
   if (Math.abs(need - 2 * THIRD) < TOL) return 'twoThirds';
   return 'off';
+}
+
+/** Off the one-third grid: two of the part's horizontal sockets are not a whole number of grid thirds (2.667 mm) apart in
+ *  x or y. Everything after such a part is shifted off the grid; only another off-grid part can make up for it. */
+export function offGrid(p: Part): boolean {
+  const P = p.ports;
+  for (let i = 0; i < P.length; i++) for (let j = i + 1; j < P.length; j++) for (const a of [0, 1]) {
+    const v = (P[j].p[a] - P[i].p[a]) / THIRD;
+    if (Math.abs(v - Math.round(v)) * THIRD > 0.05) return true;
+  }
+  return false;
 }
 
 /** Position of the open end `end` in the grid of the reference socket `ref` (entry or exit of the first part). null if
