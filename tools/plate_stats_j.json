@@ -1,5 +1,5 @@
 {
- "_source": "Sliced plates of the Japandi release print profile (A1 0.4, 0.20 mm, 7.5 % gyroid, no supports): print time in minutes and filament in grams per plate.",
+ "_source": "Sliced plates of the Japandi release print profile (A1 0.4, 0.20 mm, 7.5 % gyroid, no supports): print time in minutes and filament in grams per plate. Plates 4 and 17 re-sliced on 2026-10-09 (Distanz45 added).",
  "plates": {
   "1": {
    "min": 35.1,
@@ -14,8 +14,8 @@
    "g": 20.82
   },
   "4": {
-   "min": 619.2,
-   "g": 239.7
+   "min": 629.87,
+   "g": 244.8
   },
   "5": {
    "min": 182.8,
@@ -62,8 +62,8 @@
    "g": 270.4
   },
   "17": {
-   "min": 243.93,
-   "g": 102.59
+   "min": 263.95,
+   "g": 111.27
   }
  },
  "excluded": {

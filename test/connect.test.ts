@@ -50,7 +50,7 @@ function expectRings(els: ChainElement[], r: ConnectSuggestion[], name: string) 
 describe('Part set', () => {
   const C = connectCandidates();
   it('only released on-grid channel parts: straights, spacers, curves R24/R48, slides', () => {
-    expect(C.length).toBe(44);   // 20 straights, 2 spacers, 12 flat curves (left/right each), 8 descending curves, 2 slides
+    expect(C.length).toBe(45);   // 20 straights, 3 spacers (65, 46, 45), 12 flat curves (left/right each), 8 descending curves, 2 slides
     for (const c of C) {
       const p = catalog.byId.get(c.part)!;
       expect(p, c.part).toBeTruthy();
@@ -62,7 +62,7 @@ describe('Part set', () => {
       expect(Math.abs(c.fwd / SCALE - Math.round(c.fwd / SCALE)), c.part).toBeLessThan(1e-6);
       expect(Math.abs(c.left / SCALE - Math.round(c.left / SCALE)), c.part).toBeLessThan(1e-6);
     }
-    for (const id of ['Distanz46-0_40-40_16mm', 'Distanz65-0_40-40_16mm', 'Rutsche_120-60_16mm', 'Rutsche120_100-60_16mm', 'LangeKurve90_R90_50-40_gespiegelt_16mm', 'Gerade80_60-50_16mm'])
+    for (const id of ['Distanz45-0_40-40_16mm', 'Distanz46-0_40-40_16mm', 'Distanz65-0_40-40_16mm', 'Rutsche_120-60_16mm', 'Rutsche120_100-60_16mm', 'LangeKurve90_R90_50-40_gespiegelt_16mm', 'Gerade80_60-50_16mm'])
       expect(C.some((c) => c.part === id), id).toBe(true);
   });
   it('flat curves left and right (right = reversed), descending curves and slides forward only (downhill)', () => {

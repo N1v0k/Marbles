@@ -1,4 +1,5 @@
 {
+"AdapterDistanz45_16mm": "5e",
 "AdapterDistanz46_16mm": "57",
 "AdapterDistanz65_16mm": "58",
 "AdapterGerade100_16mm": "5c",
@@ -21,6 +22,7 @@
 "AdapterTunnelQuer95_40-40_Q32_16mm": "4z",
 "AdapterXKreuzung_50-40_16mm": "4e",
 "AdapterYMerge120_16mm": "5d",
+"Distanz45-0_40-40_16mm": "5f",
 "Distanz46-0_40-40_16mm": "9",
 "Distanz65-0_40-40_16mm": "a",
 "EndSchale_40_16mm": "b",

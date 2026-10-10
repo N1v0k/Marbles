@@ -16,6 +16,9 @@ Live: https://n1v0k.github.io/Marbles/
 - **Checks:** collisions (footprint polygons per level, adapter towers) and a ball check with an energy model per part
   (push, rolling resistance and ball mass adjustable); closed loops and merges are detected automatically.
 - **3D view:** simplified preview meshes, ball path coloured by speed, grid helpers and a connect assistant.
+- **Fillers on the 8 mm grid:** straights 120/100/80/60 and the spacers 65/46/45. Spacer45 (24 mm) keeps
+  the grid: with a Straight60 it closes a 56 mm gap, and gaps of 3, 6, 7, 9 and 10 grid units fill exactly. The connect
+  assistant (`src/connect.ts`) and the tunnel swap (`FILL` in `src/tunnel.ts`) use it.
 - **Editions:** Japandi (grooved parts, default) and plain. Colours: family colours or Bambu Studio filaments per
   group (track, rail, adapter, accent).
 - **Output:** parts list (CSV), print plan (Markdown), plate list for the release print profile, 3MF of all levels,
@@ -83,6 +86,9 @@ npm run catalog                       # all five in order
 python tools/filament_colors.py       # src/data/filaments.json from tools/bambu/; --fetch downloads the list again
 ```
 
+- Spacer45 and AdapterSpacer45 are Fusion exports in `stl_dir` like the other track parts; the other height adapters
+  come from `height_adapter_parts`. Parts without a vertical socket get the adapter of the same length
+  (`ADAPTERS_NO_VSOCK` in `build_catalog.py`).
 - `tools/stl16.py` measures the sockets on each STL. `build_catalog.py` also reads the release 3MF (plate, print
   orientation and per-object settings per part) and the English part names. Filament and print time come from a
   least-squares fit on the sliced plates of the release profiles (`tools/plate_stats*.json`, `tools/calib.json`).

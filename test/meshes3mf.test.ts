@@ -36,8 +36,8 @@ describe('Reading and mapping the profile 3MF', () => {
     expect(FILE_BY_NAME.size).toBe(ALL.length + catalog.parts.filter((p) => !p.released && REF.plain[p.file] && !p.display).length);
     for (const f of ALL) expect(FILE_BY_NAME.get(nameOf(f)), f).toBe(f);
     expect(FILE_BY_NAME.get('SnapPin_16mm')).toBe('Raststift_16mm');
-    expect(ALL.length).toBe(137);                                   // release profile: 140 parts = 137 + 3 fit tests
-    expect(ALL.filter(groovedFile).length).toBe(82);                // grooved in the Japandi profile
+    expect(ALL.length).toBe(139);                                   // release profile: 142 parts = 139 + 3 fit tests (+ Distanz45, AdapterDistanz45)
+    expect(ALL.filter(groovedFile).length).toBe(84);                // grooved in the Japandi profile
   });
   it('plain profile: objects, names, edition; fit test and repeated snap pins are skipped', () => {
     const pin = boxMesh(REF.plain.Raststift_16mm);

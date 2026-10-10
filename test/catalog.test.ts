@@ -9,16 +9,16 @@ const ALL = catalog.parts;
  *  flip-flop: modules, views and the two chain parts, see test/flipflop.test.ts) */
 const isFlipflop = (p: { id: string }) => p.id.startsWith('Kippwippe');
 /** Height adapters (tested in test/height_adapter.test.ts and test/height_adapter2.test.ts) */
-const isHeightAdapter = (p: { id: string }) => /^Adapter(Kippwippe|Spirale|XKreuzung|YMerge120|Gerade(100|88|80|60)|Distanz(65|46))_/.test(p.id);
+const isHeightAdapter = (p: { id: string }) => /^Adapter(Kippwippe|Spirale|XKreuzung|YMerge120|Gerade(100|88|80|60)|Distanz(65|46|45))_/.test(p.id);
 /** Y-merge: own section in test/ymerge.test.ts */
 const isYMerge = (p: { id: string }) => p.id.startsWith('YMerge');
 const P = ALL.filter((p) => p.family !== 'lift' && p.family !== 'liftPart' && !isFlipflop(p) && !isHeightAdapter(p) && !isYMerge(p));
 const LIFT = ALL.filter((p) => p.family === 'lift'), MODULE = ALL.filter((p) => p.family === 'liftPart');
 
 describe('Scope and names', () => {
-  it('121 parts = 124 CAD exports minus the 3 fit-test blocks; IDs end in _16mm, codes unique', () => {
-    expect(P.length).toBe(121);                    // incl. 30 straights 100/80/60 (groove and rail, 5 rims each)
-    expect(ALL.length).toBe(121 + 7 + 40 + 7 + 3 + 5 + 7);  // + 7 lift modules + 40 lifts (height 1..10 x 4 head directions) + flip-flop (3 modules, 2 views, 2 chain parts) + 3 height adapters + 5 Y-merge + 7 height adapters
+  it('122 parts = 126 CAD exports minus the 3 fit-test blocks and the AdapterDistanz45 (counted with the height adapters); IDs end in _16mm, codes unique', () => {
+    expect(P.length).toBe(122);                    // incl. 30 straights 100/80/60 (groove and rail, 5 rims each) and Distanz45
+    expect(ALL.length).toBe(122 + 7 + 40 + 7 + 3 + 5 + 8);  // + 7 lift modules + 40 lifts (height 1..10 x 4 head directions) + flip-flop (3 modules, 2 views, 2 chain parts) + 3 height adapters + 5 Y-merge + 8 height adapters (incl. AdapterDistanz45)
     expect(ALL.every((p) => p.id.endsWith('_16mm'))).toBe(true);
     expect(P.some((p) => p.id.startsWith('Passprobe'))).toBe(false);
     expect(new Set(ALL.map((p) => p.code)).size).toBe(ALL.length);
@@ -32,7 +32,9 @@ describe('Scope and names', () => {
       expect(p.released, p.id).toBe(p.plate !== null);
       if (p.plate) { expect(p.plate.no).toBeGreaterThanOrEqual(2); expect(p.plate.no).toBeLessThanOrEqual(15); }
     }
-    expect(P.filter((p) => p.released).length).toBe(112);
+    expect(P.filter((p) => p.released).length).toBe(113);
+    // Distanz45 lies next to Distanz46 on plate 04
+    expect(part('Distanz45-0_40-40').plate).toEqual({ no: 4, name: '04 Groove straights' });
     // straights 100/80/60: groove on plate 04, rail on plate 07
     for (const L of [100, 80, 60]) for (const r of ['40-40', '50-40', '50-50', '60-50', '60-60']) {
       expect(part(`Gerade${L}_${r}`).plate, `Gerade${L}_${r}`).toEqual({ no: 4, name: '04 Groove straights' });
@@ -61,9 +63,11 @@ describe('Sockets', () => {
       expect((q as unknown as { kind?: string }).kind).toBeUndefined();
     }
   });
-  it('straight is 64 long with sockets at both ends; curves R24 / R48; spacers 24.5 / 34.7 / 50.7', () => {
+  it('straight is 64 long with sockets at both ends; curves R24 / R48; spacers 24 / 24.5 / 34.7 / 50.7', () => {
     expect(part('Gerade120_40-40').ports.map((q) => q.p)).toEqual([[0, 0, 5.7], [64, 0, 5.7]]);
     expect(part('Kurve90_40').radius).toBe(24); expect(part('LangeKurve90_R90_40').radius).toBe(48);
+    expect(part('Distanz45-0_40-40').length).toBeCloseTo(24, 3);
+    expect(part('Distanz45-0_40-40').ports.map((q) => q.p)).toEqual([[0, 0, 5.7], [24, 0, 5.7]]);
     expect(part('Distanz46-0_40-40').length).toBeCloseTo(24.53, 2);
     expect(part('Distanz65-0_40-40').length).toBeCloseTo(34.67, 2);
     expect(part('SchieneDistanz95-0_40-40').length).toBeCloseTo(50.67, 2);
@@ -77,7 +81,7 @@ describe('Sockets', () => {
       expect(a.height).toBeCloseTo(LEVEL, 2);
     }
     // no vertical socket: end bowl (rests on the floor), groove spacers, cross-tunnel adapter
-    for (const s of ['EndSchale_40', 'Distanz46-0_40-40', 'Distanz65-0_40-40', 'AdapterTunnelQuer120_40-40_Q32']) expect(part(s).vsock.bottom, s).toEqual([]);
+    for (const s of ['EndSchale_40', 'Distanz45-0_40-40', 'Distanz46-0_40-40', 'Distanz65-0_40-40', 'AdapterTunnelQuer120_40-40_Q32']) expect(part(s).vsock.bottom, s).toEqual([]);
   });
 });
 
@@ -137,8 +141,8 @@ describe('Adapter assignment', () => {
     expect(part('StartSchale_60').adapter!.type).toBe('AdapterStart_16mm');
   });
   it('only end bowl and loopings have no adapter (level 0); spiral, X-crossing, Gerade88 and spacers have a height adapter', () => {
-    for (const s of ['Distanz46-0_40-40', 'Distanz65-0_40-40', 'Gerade88_60-40']) expect(needsAdapter(part(s)), s).toBe(false);
-    expect(['Distanz46-0_40-40', 'Distanz65-0_40-40', 'Gerade88_60-40'].map((s) => part(s).adapter!.type)).toEqual(['AdapterDistanz46_16mm', 'AdapterDistanz65_16mm', 'AdapterGerade88_16mm']);
+    for (const s of ['Distanz45-0_40-40', 'Distanz46-0_40-40', 'Distanz65-0_40-40', 'Gerade88_60-40']) expect(needsAdapter(part(s)), s).toBe(false);
+    expect(['Distanz45-0_40-40', 'Distanz46-0_40-40', 'Distanz65-0_40-40', 'Gerade88_60-40'].map((s) => part(s).adapter!.type)).toEqual(['AdapterDistanz45_16mm', 'AdapterDistanz46_16mm', 'AdapterDistanz65_16mm', 'AdapterGerade88_16mm']);
     for (const s of ['EndSchale_40', 'Looping240_40-40']) { expect(part(s).adapter, s).toBeNull(); expect(needsAdapter(part(s)), s).toBe(true); }
     expect(part('Spirale_100-60').adapter).toEqual({ type: 'AdapterSpirale_100-60_16mm', offset: [0, 0], rot: 0 });
     expect(part('XKreuzung_50-40').adapter).toEqual({ type: 'AdapterXKreuzung_50-40_16mm', offset: [0, 0], rot: 0 });

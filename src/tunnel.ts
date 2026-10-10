@@ -23,7 +23,8 @@ const VARIANTS: Record<string, { id: string; x: number }[]> = {
  *  swap hits almost any length on the 8 mm grid with few pieces. */
 const FILL: Record<string, Record<number, string[]>> = {
   channel: {
-    40: ['Gerade120_40-40_16mm', 'Gerade100_40-40_16mm', 'Gerade80_40-40_16mm', 'Gerade60_40-40_16mm', 'Distanz65-0_40-40_16mm', 'Distanz46-0_40-40_16mm'],
+    40: ['Gerade120_40-40_16mm', 'Gerade100_40-40_16mm', 'Gerade80_40-40_16mm', 'Gerade60_40-40_16mm', 'Distanz65-0_40-40_16mm', 'Distanz46-0_40-40_16mm',
+      'Distanz45-0_40-40_16mm'],
     50: ['Gerade120_50-50_16mm', 'Gerade100_50-50_16mm', 'Gerade80_50-50_16mm', 'Gerade60_50-50_16mm'],
     60: ['Gerade120_60-60_16mm', 'Gerade100_60-60_16mm', 'Gerade80_60-60_16mm', 'Gerade60_60-60_16mm'],
   },

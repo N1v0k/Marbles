@@ -76,7 +76,7 @@ ADAPTERS_STRAIGHT = ['AdapterGerade120_16mm', 'AdapterGerade100_16mm', 'AdapterG
                      'AdapterGerade80_16mm']
 # Without vertical socket: Gerade60/SchieneGerade60 and the spacers have no bottom socket (too short), neither do their
 # adapters. Matched by equal length; held like the part by its neighbours.
-ADAPTERS_NO_VSOCK = ['AdapterGerade60_16mm', 'AdapterDistanz65_16mm', 'AdapterDistanz46_16mm']
+ADAPTERS_NO_VSOCK = ['AdapterGerade60_16mm', 'AdapterDistanz65_16mm', 'AdapterDistanz46_16mm', 'AdapterDistanz45_16mm']
 
 
 def base(pid):
@@ -191,8 +191,10 @@ NOTES = {
                         'Rail straight 43 mm. Stands on the AdapterStraight80.'),
     'SchieneGerade60': ('Schienen-Gerade 32 mm. Steht auf dem AdapterGerade60 – ohne Stift von unten, sie hält an ihren Nachbarn.',
                         'Rail straight 32 mm. Stands on the AdapterStraight60 – no pin from below, it is held by its neighbours.'),
-    'Distanz46-0_40-40': ('Distanzstück 24,5 mm, das kürzeste Teil. Steht auf dem AdapterDistanz46 – ohne Stift von unten, es hält an seinen Nachbarn.',
-                          'Spacer 24.5 mm, the shortest part. Stands on the AdapterSpacer46 – no pin from below, it is held by its neighbours.'),
+    'Distanz45-0_40-40': ('Distanzstück 24 mm, das kürzeste Teil. Bleibt im 8-mm-Raster: Mit einer Gerade60 füllt es genau 56 mm. Steht auf dem AdapterDistanz45 – ohne Stift von unten, es hält an seinen Nachbarn.',
+                          'Spacer 24 mm, the shortest part. Stays on the 8 mm grid: with a Straight60 it fills exactly 56 mm. Stands on the AdapterSpacer45 – no pin from below, it is held by its neighbours.'),
+    'Distanz46-0_40-40': ('Distanzstück 24,5 mm. Steht auf dem AdapterDistanz46 – ohne Stift von unten, es hält an seinen Nachbarn.',
+                          'Spacer 24.5 mm. Stands on the AdapterSpacer46 – no pin from below, it is held by its neighbours.'),
     'Distanz65-0_40-40': ('Distanzstück 34,7 mm. Steht auf dem AdapterDistanz65 – ohne Stift von unten, es hält an seinen Nachbarn.',
                           'Spacer 34.7 mm. Stands on the AdapterSpacer65 – no pin from below, it is held by its neighbours.'),
     'SchieneDistanz95-0_40-40': ('Schienen-Distanzstück 50,7 mm, steht auf dem AdapterGerade95.',
@@ -225,6 +227,8 @@ NOTES = {
                         'Height adapter for Straight60 and RailStraight60 (32 mm), one level high. No socket on top or bottom (too short) – like its part it is held by the neighbouring towers.'),
     'AdapterDistanz65': ('Höhenadapter für die Distanz65 (35 mm), eine Ebene hoch. Ohne Buchse oben und unten – er hält an den Nachbartürmen.',
                          'Height adapter for the Spacer65 (35 mm), one level high. No socket on top or bottom – it is held by the neighbouring towers.'),
+    'AdapterDistanz45': ('Höhenadapter für die Distanz45 (24 mm), eine Ebene hoch. Ohne Buchse oben und unten – er hält an den Nachbartürmen.',
+                         'Height adapter for the Spacer45 (24 mm), one level high. No socket on top or bottom – it is held by the neighbouring towers.'),
     'AdapterDistanz46': ('Höhenadapter für die Distanz46 (25 mm), eine Ebene hoch. Ohne Buchse oben und unten – er hält an den Nachbartürmen.',
                          'Height adapter for the Spacer46 (25 mm), one level high. No socket on top or bottom – it is held by the neighbouring towers.'),
     'Gerade120_60-50_Huegel': ('Braucht Schwung, um über die Kuppe zu kommen. Oben hebt die Kugel ab etwa 473 mm/s ab.',

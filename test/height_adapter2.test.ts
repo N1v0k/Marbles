@@ -18,6 +18,7 @@ const ADAPTERS: [string, string, number, boolean][] = [   // adapter, English na
   ['AdapterGerade60_16mm', 'AdapterStraight60_16mm', 32, false],
   ['AdapterDistanz65_16mm', 'AdapterSpacer65_16mm', 34.667, false],
   ['AdapterDistanz46_16mm', 'AdapterSpacer46_16mm', 24.533, false],
+  ['AdapterDistanz45_16mm', 'AdapterSpacer45_16mm', 24, false],      // Fusion export, wall between the sockets 2.8
 ];
 /** part -> expected adapter */
 const PART_ADAPTER: [string, string][] = [
@@ -28,12 +29,13 @@ const PART_ADAPTER: [string, string][] = [
   ...RIMS.flatMap((r) => [[`Gerade60_${r}`, 'AdapterGerade60_16mm'], [`SchieneGerade60_${r}`, 'AdapterGerade60_16mm']] as [string, string][]),
   ['Distanz65-0_40-40', 'AdapterDistanz65_16mm'],
   ['Distanz46-0_40-40', 'AdapterDistanz46_16mm'],
+  ['Distanz45-0_40-40', 'AdapterDistanz45_16mm'],
 ];
 const key = (q: { p: number[]; n: number[] }) => [q.p[0], q.p[1], q.n[0], q.n[1]].map((x) => Math.round(x * 100) / 100).join(',');
 const errs = (els: ChainElement[]) => solveChain(els).issues.filter((i) => i.level === 'error');
 
 describe('Catalog', () => {
-  it('seven height adapters: family adapter, plate 17, English names, Japandi grooved, one level high, printed as built', () => {
+  it('eight height adapters: family adapter, plate 17, English names, Japandi grooved, one level high, printed as built', () => {
     for (const [a, en, L] of ADAPTERS) {
       const p = part(a);
       expect(p.family, a).toBe('adapter');

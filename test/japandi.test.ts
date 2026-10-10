@@ -22,7 +22,7 @@ describe('Catalog', () => {
   it('80 grooved parts, exactly the grooved families; rails and snap pin stay smooth', () => {
     const T = P.filter((p) => p.family !== 'lift' && p.family !== 'liftPart' && !p.id.startsWith('Kippwippe'));
     const g = T.filter(grooved);
-    expect(g.length).toBe(80);
+    expect(g.length).toBe(82);                    // + Distanz45 and AdapterDistanz45
     for (const p of T) expect(grooved(p), p.id).toBe(GROOVED_FAMILIES.test(p.id));
     // lift: the three housings are grooved, screws and crank are not
     expect(P.filter((p) => p.family === 'liftPart' && grooved(p)).map((p) => p.id).sort()).toEqual(['LiftFuss_40_16mm', 'LiftKopf_60_16mm', 'LiftMitte_16mm']);

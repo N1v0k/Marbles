@@ -1,8 +1,9 @@
 // Grid helpers.
 // Where does the open end lie in the 8 mm grid of the chain start? Almost all parts keep the grid (Gerade120 = 64 mm,
-// Gerade60 = 32, curves R24/R48, lift sockets 16/32); Gerade80 and Distanz65 shift by +1/3 grid (2.667 mm), Gerade100
-// by +2/3. Along the running direction a one-third offset can therefore be fixed with one part; across only after a
-// curve. Off-grid parts (Distanz46, flip-flop, funnel, spiral) yield 'off'.
+// Gerade60 = 32, Distanz45 = 24, curves R24/R48, lift sockets 16/32); Gerade80 and Distanz65 shift by +1/3 grid (2.667 mm),
+// Gerade100 by +2/3. Along the running direction a one-third offset can therefore be fixed with one part; across only after
+// a curve. Off-grid parts (Distanz46, flip-flop, funnel, spiral) yield 'off'. Distanz45 fills the gaps of
+// 3, 6, 7, 9 and 10 grid units exactly (e.g. Gerade60 + Distanz45 = 56 mm = 7 units).
 // nearRing: if the main strand ends just short of the first part's entry (loop almost closed), the UI says by how much.
 import type { Layout, PortW } from './chain';
 

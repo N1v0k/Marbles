@@ -55,7 +55,8 @@ const DIRS: [number, number][] = [[1, 0], [0, 1], [-1, 0], [0, -1]];
 function candidateSpecs(): { id: string; reversed: boolean }[] {
   const out: { id: string; reversed: boolean }[] = [];
   for (const len of [120, 100, 80, 60]) for (const r of ['40-40', '50-50', '60-60', '50-40', '60-50']) out.push({ id: `Gerade${len}_${r}_16mm`, reversed: false });
-  out.push({ id: 'Distanz65-0_40-40_16mm', reversed: false }, { id: 'Distanz46-0_40-40_16mm', reversed: false });
+  out.push({ id: 'Distanz65-0_40-40_16mm', reversed: false }, { id: 'Distanz46-0_40-40_16mm', reversed: false },
+    { id: 'Distanz45-0_40-40_16mm', reversed: false });
   for (const base of ['Kurve90', 'LangeKurve90_R90']) {
     for (const r of [40, 50, 60]) for (const reversed of [false, true]) out.push({ id: `${base}_${r}_16mm`, reversed });
     for (const r of ['50-40', '60-50']) for (const m of ['', '_gespiegelt']) out.push({ id: `${base}_${r}${m}_16mm`, reversed: false });

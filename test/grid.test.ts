@@ -25,6 +25,11 @@ describe('Grid at the open end', () => {
     expect(g.along.state).toBe('on');
     expect(g.across.state).toBe('third');
   });
+  it('Distanz45 (24 mm = 3 grid units) keeps the grid; Gerade60 + Distanz45 = 56 mm = 7 units', () => {
+    const a = endInfo('StartSchale_60', 'Gerade120_60-50', 'Kurve90_50-40')!, b = endInfo('StartSchale_60', 'Gerade120_60-50', 'Kurve90_50-40', 'Distanz45-0_40-40')!;
+    expect(b.along.state).toBe(a.along.state);
+    expect(endInfo('StartSchale_60', 'Gerade120_60-50', 'Kurve90_50-40', 'Gerade60_40-40', 'Distanz45-0_40-40')!.along.state).toBe(a.along.state);
+  });
   it('Distanz46 is off the one-third grid', () => {
     const g = endInfo('StartSchale_60', 'Gerade120_60-50', 'Kurve90_50-40', 'Distanz46-0_40-40')!;
     expect(g.along.state).toBe('off');

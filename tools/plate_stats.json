@@ -1,5 +1,5 @@
 {
- "_source": "Sliced plates of the plain release print profile (A1 0.4, 0.20 mm, 7.5 % gyroid, no supports): print time in minutes and filament in grams per plate.",
+ "_source": "Sliced plates of the plain release print profile (A1 0.4, 0.20 mm, 7.5 % gyroid, no supports): print time in minutes and filament in grams per plate. Plates 4 and 17 re-sliced on 2026-10-09 (Distanz45 added).",
  "plates": {
   "1": {
    "min": 35.0,
@@ -14,8 +14,8 @@
    "g": 20.32
   },
   "4": {
-   "min": 404.0,
-   "g": 232.14
+   "min": 410.98,
+   "g": 237.15
   },
   "5": {
    "min": 127.4,
@@ -62,8 +62,8 @@
    "g": 259.83
   },
   "17": {
-   "min": 162.72,
-   "g": 98.24
+   "min": 175.92,
+   "g": 106.56
   }
  },
  "excluded": {
