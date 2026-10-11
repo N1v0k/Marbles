@@ -21,6 +21,7 @@ import { buildThreeMf } from './threemf';
 import { PRINTERS, printerOf, loadPlate, savePlate, sanitizePlate, fitOnPlate, type PlateFit, type PlatePlace, type PlateSettings } from './printers';
 import { assemblyItems, assemblyBounds, boxSize, isLoose } from './assembly';
 import { planAssembly, buildAssemblyThreeMf, type AsmPlan } from './asm3mf';
+import { initAnalytics, trackEvent, analyticsActive } from './analytics';
 import { MW_RULES, checkMakerWorld3mf, keyValid, loadKey, saveKey, keyMetadata, type MwKey, type KeyResult, loadTestUnlock, saveTestUnlock, tapCounter } from './mwkey';
 import { registerProfile, hasProfile, getProfile, clearProfiles, type Ed } from './meshes3mf';
 import { setColors, getColors, COLOR_PRESETS, COLOR_GROUPS, sanitizeColors, presetState, withFilament, withOwnColor, FILAMENTS, FIL_TYPES, FIT_TYPE,
@@ -63,7 +64,8 @@ function applyLang() {
   document.querySelectorAll<HTMLElement>('[data-t]').forEach((el) => { el.innerHTML = t(el.dataset.t!); });
   ($('#search') as HTMLInputElement).placeholder = t('search');
   $('#btn-lang').textContent = getLang() === 'de' ? 'EN' : 'DE';
-  $('#help-body').innerHTML = t('helpText') + `<p class="muted small">${t('title')} v2.5 · ${tf('helpFooter', { n: catalog.parts.filter((p) => !kitOf(p) && !p.display).length })} · ${viewer.glInfo}</p>`;
+  $('#help-body').innerHTML = t('helpText') + `<p class="muted small">${t('title')} v2.5 · ${tf('helpFooter', { n: catalog.parts.filter((p) => !kitOf(p) && !p.display).length })} · ${viewer.glInfo}${analyticsActive() ? ' · ' + t('statsNote') : ''}</p>`;
+  $('#btn-mw').title = t('getFilesTitle');
   $('#brand-sub').textContent = t(isJapandi() ? 'subtitleJ' : 'subtitle');
   fillColorUi();
   $('#sw-japandi').title = tf('japandiHint', { n: catalog.parts.filter((p) => p.jp).length }); $('#chk-japandi').setAttribute('aria-label', t('japandi'));
@@ -955,6 +957,7 @@ function openKeyDialog(msg = '', cls = '') {
   const dlg = $('#dlg-key') as HTMLDialogElement;
   const m = $('#key-msg'); m.textContent = msg; m.className = 'small ' + cls;
   $('#key-page').innerHTML = MW_RULES.pageUrl ? `<a href="${MW_RULES.pageUrl}" target="_blank" rel="noopener">${t('keyPage')}</a>` : '';
+  $('#key-page').querySelector('a')?.addEventListener('click', () => trackEvent('click-makerworld-key'));
   // profile of the other edition loaded: offer "Export plain" / "Export Japandi" (switches the edition, then exports)
   const other: Ed = curEd() === 'japandi' ? 'plain' : 'japandi';
   const sw = $('#key-switch') as HTMLButtonElement;
@@ -1352,6 +1355,12 @@ window.addEventListener('hashchange', () => {
   if (state.japandi !== ed0 || dc) applyLang();
   if (dec.unknown) toast(tf('loadSkipped', { n: dec.unknown }));
 });
+
+// MakerWorld button in the top bar: the way from the builder to the print files
+const mwBtn = $<HTMLAnchorElement>('#btn-mw');
+if (MW_RULES.pageUrl) { mwBtn.href = MW_RULES.pageUrl; mwBtn.hidden = false; }
+mwBtn.addEventListener('click', () => trackEvent('click-makerworld'));
+initAnalytics();
 
 fillDemoMenu();
 applyLang();
