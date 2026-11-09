@@ -66,6 +66,11 @@ describe('3MF files', () => {
     expect(Object.keys(z).sort()).toEqual(['3D/3dmodel.model', 'Metadata/model_settings.config', 'Metadata/project_settings.config', 'Metadata/slice_info.config', '[Content_Types].xml', '_rels/.rels']);
     // project settings of the release profile (without them Bambu Studio loads only geometry, no plates)
     expect(JSON.parse(strFromU8(z['Metadata/project_settings.config'])).printer_settings_id).toBe('Bambu Lab A1 0.4 nozzle');
+    // mandatory values (Mini_16mm_skripte/profil/profil16_pflicht.py, 2026-11-09): bridges across every socket roof
+    // regardless of the socket's direction on the plate, and socket roofs as thick as at 0.20 mm for any layer height
+    const ps = JSON.parse(strFromU8(z['Metadata/project_settings.config']));
+    expect(ps.bridge_angle).toBe('0');
+    expect(ps.bottom_shell_thickness).toBe('0.6');
     expect(strFromU8(z['3D/3dmodel.model'])).toContain('<build>');
   });
 });
